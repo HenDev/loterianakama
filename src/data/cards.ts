@@ -1,0 +1,78 @@
+import type { LotteryCard } from '../types';
+
+export const LOTERIA_CARDS: LotteryCard[] = [
+  { id: 1,  name: 'El Gallo',       verse: 'El que le cantó a San Pedro no le volverá a cantar.',           category: 'animal'    },
+  { id: 2,  name: 'El Diablito',    verse: 'Pórtate bien cuñado, no te aparezca el diablo colorado.',       category: 'character' },
+  { id: 3,  name: 'La Dama',        verse: 'Ahí va la presumida, con su falda almidonada.',                 category: 'character' },
+  { id: 4,  name: 'El Catrín',      verse: 'Don Ferruco en la alameda, su bastón quería tirar.',            category: 'character' },
+  { id: 5,  name: 'El Paraguas',    verse: 'Para el sol y para el agua.',                                   category: 'object'    },
+  { id: 6,  name: 'La Sirena',      verse: 'Con los cantos de sirena no te vayas a marear.',                category: 'character' },
+  { id: 7,  name: 'La Escalera',    verse: 'Súbeme paso a pasito, no quieras pegar brinquitos.',            category: 'object'    },
+  { id: 8,  name: 'La Botella',     verse: 'El que con vino se acuesta, con vinagre se levanta.',           category: 'object'    },
+  { id: 9,  name: 'El Barril',      verse: 'Todos le dan de palmadas, pero él nunca se enoja.',             category: 'object'    },
+  { id: 10, name: 'El Árbol',       verse: 'El que a buen árbol se arrima, buena sombra le cobija.',        category: 'nature'    },
+  { id: 11, name: 'El Melón',       verse: 'El melón y el casamiento, ha de ser acertamiento.',             category: 'nature'    },
+  { id: 12, name: 'El Valiente',    verse: 'Por aquí pasó el valiente, que a nadie le tiene miedo.',        category: 'character' },
+  { id: 13, name: 'El Gordo',       verse: 'Tanto buche y nada de queso.',                                  category: 'character' },
+  { id: 14, name: 'La Muerte',      verse: 'La muerte tilica y flaca, a todos igual les llega.',            category: 'celestial' },
+  { id: 15, name: 'La Pera',        verse: 'Al que le dan no escoge.',                                      category: 'nature'    },
+  { id: 16, name: 'La Bandera',     verse: 'Verde, blanco y colorado, la bandera del soldado.',             category: 'object'    },
+  { id: 17, name: 'El Bandolón',    verse: 'Toca el bandolón su sangre para hacer bailar al son.',          category: 'object'    },
+  { id: 18, name: 'El Violoncello', verse: 'El sonido del cello llega profundo al corazón.',                category: 'object'    },
+  { id: 19, name: 'La Garza',       verse: 'En las orillas del agua, parada sobre una pata.',               category: 'animal'    },
+  { id: 20, name: 'El Pájaro',      verse: 'Tu verás pajarito, lo que te va a pasar si sigues enamorando.', category: 'animal'    },
+  { id: 21, name: 'La Mano',        verse: 'La mano de un criminal.',                                       category: 'object'    },
+  { id: 22, name: 'La Bota',        verse: 'Una bota bien lustrada, y a trabajar.',                         category: 'object'    },
+  { id: 23, name: 'La Luna',        verse: 'La luna, luna, lunera, cascabelera.',                           category: 'celestial' },
+  { id: 24, name: 'El Cotorro',     verse: 'El que por su boca muere, que le corten el pescuezo.',          category: 'animal'    },
+  { id: 25, name: 'El Borracho',    verse: 'Ya lo llevaron al bote, el que al pulque le da dote.',          category: 'character' },
+  { id: 26, name: 'El Negrito',     verse: 'El que se fue a la villa perdió su silla.',                     category: 'character' },
+  { id: 27, name: 'El Corazón',     verse: 'No me extrañes corazón, que regreso en el camión.',             category: 'object'    },
+  { id: 28, name: 'La Sandía',      verse: 'Porción de verano.',                                            category: 'nature'    },
+  { id: 29, name: 'El Tambor',      verse: 'Con el sonido del tambor, se alegra el corazón.',               category: 'object'    },
+  { id: 30, name: 'El Camarón',     verse: 'Camarón que se duerme, se lo lleva la corriente.',              category: 'animal'    },
+  { id: 31, name: 'Las Jaras',      verse: 'Las jaras del indio Pima, a muchos les lastimó.',               category: 'object'    },
+  { id: 32, name: 'El Músico',      verse: 'El músico con su tambor y las chaquiras.',                      category: 'character' },
+  { id: 33, name: 'La Araña',       verse: 'Araña, arañita que picó a Pepita.',                             category: 'animal'    },
+  { id: 34, name: 'El Soldado',     verse: 'Uno, dos, tres y cuatro, el soldado dio un mal paso.',          category: 'character' },
+  { id: 35, name: 'La Estrella',    verse: 'La que se guía por la estrella, no se pierde.',                 category: 'celestial' },
+  { id: 36, name: 'El Cazo',        verse: 'El cazo de barro muerto, ya ni sirve ni pa nada.',              category: 'object'    },
+  { id: 37, name: 'El Mundo',       verse: 'Este mundo es una bola, y nosotros el balón.',                  category: 'celestial' },
+  { id: 38, name: 'El Apache',      verse: 'Corriendo viene el Apache.',                                    category: 'character' },
+  { id: 39, name: 'El Nopal',       verse: 'Al nopal lo van a ver nomás cuando tiene tunas.',               category: 'nature'    },
+  { id: 40, name: 'El Alacrán',     verse: 'El que con alacranes se acuesta, alacraneado amanece.',         category: 'animal'    },
+  { id: 41, name: 'La Rosa',        verse: 'Rosita, ¿Dónde irás con tanto primor?',                         category: 'nature'    },
+  { id: 42, name: 'La Calavera',    verse: 'Al paso que tú vas, pronto llegarás.',                          category: 'celestial' },
+  { id: 43, name: 'La Campana',     verse: 'Toca la campana, tin, tin, tan.',                               category: 'object'    },
+  { id: 44, name: 'El Cantarito',   verse: 'Tanto va el cántaro al agua que hasta que se quiebra.',         category: 'object'    },
+  { id: 45, name: 'El Venado',      verse: 'Saltó el venado de la barranca y ni en qué caer.',              category: 'animal'    },
+  { id: 46, name: 'El Sol',         verse: 'La manta que nos abriga y el alimento que nos da.',             category: 'celestial' },
+  { id: 47, name: 'La Corona',      verse: 'El que nació pa maceta no sale del corredor.',                  category: 'object'    },
+  { id: 48, name: 'La Chalupa',     verse: 'Rema que rema Lupita, rema que rema a remar.',                  category: 'object'    },
+  { id: 49, name: 'El Pino',        verse: 'Frío, solitario y verde, triste en la montaña.',                category: 'nature'    },
+  { id: 50, name: 'El Pescado',     verse: 'Al pescado por su boca muere.',                                 category: 'animal'    },
+  { id: 51, name: 'La Palma',       verse: 'Palmero, sube a la palma y dile a la palmerita.',               category: 'nature'    },
+  { id: 52, name: 'La Maceta',      verse: 'El que nació pa maceta no pasa del corredor.',                  category: 'object'    },
+  { id: 53, name: 'El Arpa',        verse: 'El arpa, instrumento del alma.',                                category: 'object'    },
+  { id: 54, name: 'La Rana',        verse: 'Al que no habla, Dios no lo oye.',                              category: 'animal'    },
+];
+
+export const CARD_COLORS: Record<string, number> = {
+  character: 0xC0392B,
+  animal:    0xE67E22,
+  nature:    0x27AE60,
+  object:    0x2980B9,
+  celestial: 0x16A085,
+};
+
+export const CARD_ICONS: Record<string, string> = {
+  character: '👤',
+  animal:    '🐾',
+  nature:    '🌿',
+  object:    '🎭',
+  celestial: '✨',
+};
+
+export function getCardById(id: number): LotteryCard | undefined {
+  return LOTERIA_CARDS.find(c => c.id === id);
+}
