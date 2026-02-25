@@ -41,28 +41,28 @@ export class ResultScene extends Phaser.Scene {
     const centerX = width / 2;
 
     if (this.isLocalWinner) {
-      this.add.text(centerX, height * 0.18, '🏆 ¡LOTERÍA! 🏆', {
+      this.add.text(centerX, height * 0.22, '🏆 ¡LOTERÍA! 🏆', {
         fontSize: '56px',
         color: '#d4af37',
         fontFamily: 'Georgia, serif',
         fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      this.add.text(centerX, height * 0.28, '¡Felicidades, ganaste!', {
+      this.add.text(centerX, height * 0.30, '¡Felicidades, ganaste!', {
         fontSize: '28px',
         color: '#ffffff',
         fontFamily: 'Georgia, serif',
         fontStyle: 'italic',
       }).setOrigin(0.5);
     } else {
-      this.add.text(centerX, height * 0.18, '¡Lotería!', {
+      this.add.text(centerX, height * 0.22, '¡Lotería!', {
         fontSize: '56px',
         color: '#cc4444',
         fontFamily: 'Georgia, serif',
         fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      this.add.text(centerX, height * 0.28, 'Otro jugador ganó esta vez', {
+      this.add.text(centerX, height * 0.30, 'Otro jugador ganó esta vez', {
         fontSize: '24px',
         color: '#aaaaaa',
         fontFamily: 'Georgia, serif',

@@ -11,7 +11,7 @@ import { validateClaim } from '../utils/validation';
 
 const NAKAMA_HOST = 'multiplayer.studiohen.com.mx';
 const NAKAMA_PORT = '443';
-const NAKAMA_KEY = 'defaultkey';
+const NAKAMA_KEY = 'VMedYA8iiYNuevHxmxPXV36oTqvopvb1';
 const DRAW_INTERVAL_MS = 3000;
 const AI_MARK_DELAY_MS = 500;
 const MIN_MULTIPLAYER_PLAYERS = 2;
@@ -156,6 +156,30 @@ export class NakamaNetworkService extends BaseNetworkService implements INetwork
 
   isHostPlayer(): boolean {
     return this.isHost;
+  }
+
+  async saveClipboardToStorage(clipboardData: string): Promise<void> {
+    if (!this.session) {
+      throw new Error('No session available');
+    }
+
+    try {
+      // Parsear el JSON string a objeto para que Nakama lo maneje correctamente
+      const dataObject = JSON.parse(clipboardData);
+
+      await this.client.writeStorageObjects(this.session, [
+        {
+          collection: 'clip',
+          key: `clipboard_${Date.now()}`,
+          value: dataObject,
+          permission_read: 1,
+          permission_write: 1,
+        },
+      ]);
+    } catch (error) {
+      console.error('Error saving clipboard to storage:', error);
+      throw error;
+    }
   }
 
   private handleIncomingEvent(event: NetworkEvent): void {

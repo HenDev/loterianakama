@@ -9,14 +9,14 @@ export class BootScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     const bg = this.add.rectangle(width / 2, height / 2, width, height, 0x0d1b2a);
-    this.add.text(width / 2, height / 2 - 60, 'LOTERÍA MEXICANA', {
+    this.add.text(width / 2, height * 0.4, 'LOTERÍA MEXICANA', {
       fontSize: '42px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, height / 2 - 10, 'Multijugador', {
+    this.add.text(width / 2, height * 0.47, 'Multijugador', {
       fontSize: '20px',
       color: '#aaaaaa',
       fontFamily: 'Georgia, serif',

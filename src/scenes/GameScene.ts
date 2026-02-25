@@ -64,16 +64,6 @@ export class GameScene extends Phaser.Scene {
         senderId: this.playerId,
         timestamp: Date.now(),
       });
-    } else {
-      const ns = getNakamaNetworkService();
-      if (ns.isHostPlayer()) {
-        this.networkService.send({
-          type: 'GAME_START',
-          payload: { targetWin: this.targetWin },
-          senderId: this.playerId,
-          timestamp: Date.now(),
-        });
-      }
     }
   }
 
@@ -121,6 +111,34 @@ export class GameScene extends Phaser.Scene {
       color: '#888888',
       fontFamily: 'Georgia, serif',
     }).setOrigin(1, 0.5);
+
+    const fullscreenBtn = this.add.text(width - 160, h / 2, '⛶', {
+      fontSize: '18px',
+      color: '#d4af37',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    const updateFullscreenIcon = () => {
+      fullscreenBtn.setText(this.scale.isFullscreen ? '✕' : '⛶');
+    };
+
+    fullscreenBtn.on('pointerdown', () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    fullscreenBtn.on('pointerover', () => {
+      fullscreenBtn.setScale(1.2);
+    });
+
+    fullscreenBtn.on('pointerout', () => {
+      fullscreenBtn.setScale(1);
+    });
+
+    this.scale.on('fullscreenchange', updateFullscreenIcon);
+
     void modeLabel, bg;
   }
 

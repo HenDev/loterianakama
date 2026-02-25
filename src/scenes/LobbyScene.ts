@@ -44,31 +44,23 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private buildTitle(width: number, height: number): void {
-    const titleBg = this.add.rectangle(width / 2, height * 0.18, width * 0.7, 100, 0x000000, 0.4);
+    const titleBg = this.add.rectangle(width / 2, height * 0.2, width * 0.8, 100, 0x000000, 0.4);
     titleBg.setStrokeStyle(2, 0xd4af37, 0.6);
 
-    const title = this.add.text(width / 2, height * 0.14, '¡LOTERÍA!', {
-      fontSize: '62px',
+    const title = this.add.text(width / 2, height * 0.19, '¡LOTERÍA!', {
+      fontSize: '58px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(width / 2, height * 0.22, 'Lotería Mexicana Multijugador', {
+    const subtitle = this.add.text(width / 2, height * 0.24, 'Lotería Mexicana Multijugador', {
       fontSize: '18px',
       color: '#cccccc',
       fontFamily: 'Georgia, serif',
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    this.tweens.add({
-      targets: title,
-      y: height * 0.14 - 6,
-      duration: 2000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
 
     void titleBg, subtitle;
   }
@@ -104,7 +96,7 @@ export class LobbyScene extends Phaser.Scene {
     const panelX = width / 2;
     const panelY = height * 0.42;
 
-    const panel = this.add.rectangle(panelX, panelY, 420, 240, 0x0a0a1a, 0.9);
+    const panel = this.add.rectangle(panelX, panelY, 420, 215, 0x0a0a1a, 0.9);
     panel.setStrokeStyle(2, 0xd4af37, 0.8);
 
     this.add.text(panelX, panelY - 100, 'UN JUGADOR — Modo de Victoria', {
@@ -152,7 +144,7 @@ export class LobbyScene extends Phaser.Scene {
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    const muteBtnText = this.add.text(panelX + 185, panelY - 115, '🔊', {
+    const muteBtnText = this.add.text(panelX + 185, panelY - 80, '🔊', {
       fontSize: '20px',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -161,6 +153,24 @@ export class LobbyScene extends Phaser.Scene {
       audio.setMuted(!audio.isMuted());
       muteBtnText.setText(audio.isMuted() ? '🔇' : '🔊');
     });
+
+    const fullscreenBtnText = this.add.text(panelX - 185, panelY - 80, '⛶', {
+      fontSize: '20px',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    const updateFullscreenIcon = () => {
+      fullscreenBtnText.setText(this.scale.isFullscreen ? '✕' : '⛶');
+    };
+
+    fullscreenBtnText.on('pointerdown', () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    this.scale.on('fullscreenchange', updateFullscreenIcon);
 
     void panel, lineaBtn, tablaBtn, divider, multiBtn, hint;
   }

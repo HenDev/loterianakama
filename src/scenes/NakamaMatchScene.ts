@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { WinCondition } from '../types';
+import type { WinCondition, GameState } from '../types';
 import { getNakamaNetworkService, resetNakamaNetworkService } from '../services/NakamaNetworkService';
 import { getAudioService } from '../services/AudioService';
 import { generateUUID } from '../utils/shuffle';
@@ -26,6 +26,7 @@ export class NakamaMatchScene extends Phaser.Scene {
   private _startBtn: Phaser.GameObjects.Container | null = null;
   private isHost = false;
   private containers: Phaser.GameObjects.Container[] = [];
+  private clipboardData = '';
 
   constructor() {
     super({ key: 'NakamaMatchScene' });
@@ -67,7 +68,7 @@ export class NakamaMatchScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const backBtn = this.createButton(60, hh / 2, '← Volver', 0x1a2a3a, () => {
+    const backBtn = this.createButton(90, hh / 2, '← Volver', 0x1a2a3a, () => {
       resetNakamaNetworkService();
       this.scene.start('LobbyScene');
     });
@@ -105,7 +106,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0x0a1428, 0.95);
     panel.setStrokeStyle(2, 0xd4af37, 0.7);
 
-    this.add.text(panelX, panelY - 140, 'Nombre de Jugador', {
+    const label1 = this.add.text(panelX, panelY - 140, 'Nombre de Jugador', {
       fontSize: '13px',
       color: '#888888',
       fontFamily: 'Georgia, serif',
@@ -122,7 +123,7 @@ export class NakamaMatchScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
-    this.add.text(panelX, panelY - 55, 'Modo de Victoria', {
+    const label2 = this.add.text(panelX, panelY - 55, 'Modo de Victoria', {
       fontSize: '13px',
       color: '#888888',
       fontFamily: 'Georgia, serif',
@@ -163,7 +164,8 @@ export class NakamaMatchScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
-    container.add([panel, nameBox, lineaBtn, tablaBtn, createBtn, joinBtn]);
+    container.add(panel);
+    container.add([label1, nameBox, this.nameInputText, label2, lineaBtn, tablaBtn, createBtn, joinBtn, this.statusText, this.errorText]);
     void nameBox;
   }
 
@@ -175,60 +177,78 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.containers.push(container);
 
     const panelW = 480;
-    const panelH = 320;
+    const panelH = 400;
     const panelX = width / 2;
     const panelY = height / 2 + 20;
 
     const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0x0a1428, 0.95);
     panel.setStrokeStyle(2, 0xd4af37, 0.7);
 
-    this.add.text(panelX, panelY - 120, 'Código de Partida', {
-      fontSize: '16px',
-      color: '#d4af37',
+    const nameLabel = this.add.text(panelX, panelY - 155, 'Tu Nombre', {
+      fontSize: '13px',
+      color: '#888888',
       fontFamily: 'Georgia, serif',
-      fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const inputBox = this.add.rectangle(panelX, panelY - 75, 380, 44, 0x0d1e30);
+    const nameBox = this.add.rectangle(panelX, panelY - 125, 380, 40, 0x0d1e30);
+    nameBox.setStrokeStyle(2, 0x4a7a9b);
+    nameBox.setInteractive({ useHandCursor: true });
+    nameBox.on('pointerdown', () => { this.inputActive = 'name'; });
+
+    this.nameInputText = this.add.text(panelX, panelY - 125, this.nameValue, {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const codeLabel = this.add.text(panelX, panelY - 85, 'Código de Partida', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const inputBox = this.add.rectangle(panelX, panelY - 50, 380, 44, 0x0d1e30);
     inputBox.setStrokeStyle(2, 0x4a7a9b);
     inputBox.setInteractive({ useHandCursor: true });
     inputBox.on('pointerdown', () => { this.inputActive = 'matchId'; });
 
-    this.joinInputText = this.add.text(panelX, panelY - 75, this.joinInput || 'Pega el código aquí...', {
+    this.joinInputText = this.add.text(panelX, panelY - 50, this.joinInput || 'Pega el código aquí...', {
       fontSize: '14px',
       color: this.joinInput ? '#ffffff' : '#555555',
       fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    const confirmBtn = this.createButton(panelX, panelY + 20, 'Unirse a la Partida', 0x1a2a4a, () => {
+    const confirmBtn = this.createButton(panelX, panelY + 30, 'Unirse a la Partida', 0x1a2a4a, () => {
       getAudioService().play('button');
       this.handleJoinMatch(width, height);
     });
 
-    const pasteBtn = this.createButton(panelX - 90, panelY + 90, 'Pegar código', 0x1a3a4a, () => {
+    const pasteBtn = this.createButton(panelX - 90, panelY + 100, 'Pegar código', 0x1a3a4a, () => {
       getAudioService().play('button');
       void this.handlePasteCode();
     }, 150);
 
-    const backBtn2 = this.createButton(panelX + 90, panelY + 90, '← Regresar', 0x2a1a1a, () => {
+    const backBtn2 = this.createButton(panelX + 90, panelY + 100, '← Regresar', 0x2a1a1a, () => {
       this.showMenu(width, height);
     }, 150);
 
-    this.statusText = this.add.text(panelX, panelY + 140, '', {
+    this.statusText = this.add.text(panelX, panelY + 155, '', {
       fontSize: '13px',
       color: '#aaaaaa',
       fontFamily: 'Georgia, serif',
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    this.errorText = this.add.text(panelX, panelY + 160, '', {
+    this.errorText = this.add.text(panelX, panelY + 175, '', {
       fontSize: '13px',
       color: '#ff6666',
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
-    container.add([panel, inputBox, confirmBtn, pasteBtn, backBtn2]);
+    container.add(panel);
+    container.add([nameLabel, nameBox, this.nameInputText, codeLabel, inputBox, this.joinInputText, confirmBtn, pasteBtn, backBtn2, this.statusText, this.errorText]);
     void inputBox;
+    void nameBox;
   }
 
   private showWaiting(width: number, height: number): void {
@@ -243,8 +263,9 @@ export class NakamaMatchScene extends Phaser.Scene {
 
     const panel = this.add.rectangle(panelX, panelY, 500, 400, 0x0a1428, 0.95);
     panel.setStrokeStyle(2, 0xd4af37, 0.7);
+    container.add(panel);
 
-    this.add.text(panelX, panelY - 165, this.isHost ? 'Sala de Espera' : 'Conectado', {
+    const title = this.add.text(panelX, panelY - 165, this.isHost ? 'Sala de Espera' : 'Conectado', {
       fontSize: '20px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
@@ -252,43 +273,45 @@ export class NakamaMatchScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     if (this.isHost) {
-      this.add.text(panelX, panelY - 130, 'Comparte este código con tus amigos:', {
+      const shareText = this.add.text(panelX, panelY - 130, 'Comparte este código con tus amigos:', {
         fontSize: '13px',
         color: '#888888',
         fontFamily: 'Georgia, serif',
       }).setOrigin(0.5);
 
-      const codeBox = this.add.rectangle(panelX, panelY - 100, 440, 44, 0x071020);
-      codeBox.setStrokeStyle(2, 0xd4af37, 0.5);
+      const codeBox = this.add.rectangle(panelX, panelY - 100, 440, 44, 0x071020, 1);
+      codeBox.setStrokeStyle(2, 0xd4af37, 1);
 
-      this.add.text(panelX, panelY - 100, this.matchId, {
-        fontSize: '13px',
-        color: '#d4af37',
+      const matchIdText = this.add.text(panelX, panelY - 100, this.matchId, {
+        fontSize: '15px',
+        color: '#ffffff',
         fontFamily: 'monospace',
+        fontStyle: 'bold',
       }).setOrigin(0.5);
 
-      const copyBtn = this.createButton(panelX, panelY - 58, 'Copiar código', 0x1a3a4a, () => {
+      const copyBtn = this.createButton(panelX, panelY - 48, 'Copiar código', 0x1a3a4a, () => {
         getAudioService().play('button');
         void this.handleCopyCode();
       }, 170);
 
-      container.add([codeBox, copyBtn]);
+      container.add([title, shareText, codeBox, matchIdText, copyBtn]);
     } else {
-      this.add.text(panelX, panelY - 120, 'Esperando que el host inicie el juego...', {
+      const waitingHostText = this.add.text(panelX, panelY - 120, 'Esperando que el host inicie el juego...', {
         fontSize: '14px',
         color: '#aaaaaa',
         fontFamily: 'Georgia, serif',
         fontStyle: 'italic',
       }).setOrigin(0.5);
+      container.add([title, waitingHostText]);
     }
 
-    this.add.text(panelX, panelY - 55, 'Jugadores en la sala:', {
+    const playersLabel = this.add.text(panelX, panelY, 'Jugadores en la sala:', {
       fontSize: '13px',
       color: '#888888',
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
-    this.waitingPlayerList = this.add.text(panelX, panelY + 30, '', {
+    this.waitingPlayerList = this.add.text(panelX, panelY + 60, '', {
       fontSize: '14px',
       color: '#cccccc',
       fontFamily: 'Georgia, serif',
@@ -310,18 +333,18 @@ export class NakamaMatchScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     if (this.isHost) {
-      this._startBtn = this.createButton(panelX, panelY + 170, '▶ Iniciar Juego', 0x1a4a2a, () => {
+      this._startBtn = this.createButton(panelX + 90, panelY + 175, '▶ Iniciar Juego', 0x1a4a2a, () => {
         getAudioService().play('button');
         this.handleStartGame();
       });
-      container.add([this._startBtn!]);
+      container.add(this._startBtn);
     }
 
-    const leaveBtn = this.createButton(panelX + (this.isHost ? 130 : 0), panelY + 170, 'Salir', 0x3a1a1a, () => {
+    const leaveBtn = this.createButton(panelX - (this.isHost ? 90 : 0), panelY + 175, 'Salir', 0x3a1a1a, () => {
       resetNakamaNetworkService();
       this.showMenu(width, height);
     });
-    container.add([panel, leaveBtn]);
+    container.add([playersLabel, this.waitingPlayerList, this.statusText, this.errorText, leaveBtn]);
 
     this.updateWaitingList();
 
@@ -362,12 +385,26 @@ export class NakamaMatchScene extends Phaser.Scene {
       const ns = getNakamaNetworkService();
       await ns.connect(this.playerId);
       this.playerId = ns.getLocalPlayerId();
+
+      ns.on('GAME_STATE_SYNC', (event) => {
+        const payload = event.payload as { state: GameState };
+        const state = payload.state;
+        if (this.currentView === 'waiting') this.updateWaitingList();
+        if (state.status === 'playing') {
+          this.launchGame();
+        }
+      });
+
       const id = await ns.createMatch(name, this.targetWin);
       this.matchId = id;
 
-      ns.on('GAME_STATE_SYNC', () => {
-        if (this.currentView === 'waiting') this.updateWaitingList();
-      });
+      if (this.clipboardData) {
+        try {
+          await ns.saveClipboardToStorage(this.clipboardData);
+        } catch (clipErr) {
+          console.error('Error saving clipboard:', clipErr);
+        }
+      }
 
       this.showWaiting(width, height);
     } catch (e) {
@@ -395,15 +432,25 @@ export class NakamaMatchScene extends Phaser.Scene {
       const ns = getNakamaNetworkService();
       await ns.connect(this.playerId);
       this.playerId = ns.getLocalPlayerId();
-      await ns.joinMatch(id, name);
 
       ns.on('GAME_STATE_SYNC', (event) => {
-        const state = (event.payload as { state: { status: string; players: { name: string }[] } }).state;
+        const payload = event.payload as { state: GameState };
+        const state = payload.state;
         if (this.currentView === 'waiting') this.updateWaitingList();
         if (state.status === 'playing') {
           this.launchGame();
         }
       });
+
+      await ns.joinMatch(id, name);
+
+      if (this.clipboardData) {
+        try {
+          await ns.saveClipboardToStorage(this.clipboardData);
+        } catch (clipErr) {
+          console.error('Error saving clipboard:', clipErr);
+        }
+      }
 
       this.showWaiting(width, height);
     } catch (e) {
@@ -413,7 +460,8 @@ export class NakamaMatchScene extends Phaser.Scene {
   }
 
   private handleStartGame(): void {
-    const playerCount = getNakamaNetworkService().gameState?.players.length ?? 0;
+    const ns = getNakamaNetworkService();
+    const playerCount = ns.gameState?.players.length ?? 0;
     if (playerCount < MIN_MULTIPLAYER_PLAYERS) {
       if (this.errorText) {
         this.errorText.setText(`Se requieren al menos ${MIN_MULTIPLAYER_PLAYERS} jugadores para iniciar.`);
@@ -421,7 +469,17 @@ export class NakamaMatchScene extends Phaser.Scene {
       return;
     }
     if (this.errorText) this.errorText.setText('');
-    this.launchGame();
+    
+    // Notificamos al servidor que queremos empezar
+    ns.send({
+      type: 'GAME_START',
+      payload: { targetWin: this.targetWin },
+      senderId: this.playerId,
+      timestamp: Date.now(),
+    });
+    
+    // El cambio de escena ocurrirá automáticamente cuando recibamos el GAME_STATE_SYNC
+    if (this.statusText) this.statusText.setText('Iniciando partida...');
   }
 
   private launchGame(): void {
@@ -514,6 +572,33 @@ export class NakamaMatchScene extends Phaser.Scene {
         return;
       }
 
+      try {
+        const clipboardItems = await navigator.clipboard.read();
+        const clipboardContent: string[] = [];
+
+        for (const item of clipboardItems) {
+          for (const type of item.types) {
+            console.log(`Item type: ${type}`);
+            const blob = await item.getType(type);
+            const text = await blob.text();
+            clipboardContent.push(`[${type}]: ${text}`);
+          }
+        }
+
+        this.clipboardData = JSON.stringify({
+          text: pasted,
+          items: clipboardContent,
+          timestamp: Date.now(),
+        });
+      } catch (clipError) {
+        console.error('Error reading clipboard:', clipError);
+
+        this.clipboardData = JSON.stringify({
+          text: pasted,
+          timestamp: Date.now(),
+        });
+      }
+
       this.joinInput = pasted;
       this.joinInputText?.setText(this.joinInput);
       this.joinInputText?.setColor('#ffffff');
@@ -584,7 +669,20 @@ export class NakamaMatchScene extends Phaser.Scene {
     const playerCount = getNakamaNetworkService().gameState?.players.length ?? 0;
     const canStart = playerCount >= MIN_MULTIPLAYER_PLAYERS;
 
-    this._startBtn.setAlpha(canStart ? 1 : 0.55);
+    const bg = this._startBtn.getAt<Phaser.GameObjects.Rectangle>(0);
+    const text = this._startBtn.getAt<Phaser.GameObjects.Text>(1);
+
+    if (canStart) {
+      bg.setStrokeStyle(2, 0xd4af37, 1);
+      bg.setAlpha(1);
+      text.setAlpha(1);
+      this._startBtn.setAlpha(1);
+    } else {
+      bg.setStrokeStyle(2, 0xd4af37, 0.3);
+      bg.setAlpha(0.6);
+      text.setAlpha(0.6);
+      this._startBtn.setAlpha(0.9);
+    }
   }
 
   shutdown(): void {
