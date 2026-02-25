@@ -6,6 +6,7 @@ import { getAudioService } from '../services/AudioService';
 import { BoardComponent } from '../components/BoardComponent';
 import { DeckCardComponent } from '../components/DeckCardComponent';
 import { PlayerListComponent } from '../components/PlayerListComponent';
+import { CARD_ASPECT_RATIO } from '../data/cards';
 
 export class GameScene extends Phaser.Scene {
   private playerId = '';
@@ -148,7 +149,8 @@ export class GameScene extends Phaser.Scene {
 
     this.playerListComp = new PlayerListComponent(this, x + w / 2, y + 16);
 
-    this.deckCardComp = new DeckCardComponent(this, x + w / 2, y + h * 0.65);
+    const { cardWidth, cardHeight } = this.getCardSizeForArea(w - 30, h * 0.42);
+    this.deckCardComp = new DeckCardComponent(this, x + w / 2, y + h * 0.62, cardWidth, cardHeight);
 
     this.currentCardLabel = this.add.text(x + w / 2, y + h * 0.88, 'Esperando...', {
       fontSize: '12px',
@@ -174,9 +176,8 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5);
     void boardLabel;
 
-    const cellW = Math.min(Math.floor((w - 40) / 4), 100);
-    const cellH = Math.min(Math.floor((h - 120) / 4), 130);
     const gap = 4;
+    const { cellW, cellH } = this.getBoardCellSize(w - 40, h - 120, gap);
     const totalBoardH = 4 * cellH + 3 * gap;
     const boardX = x + w / 2;
     const boardY = y + 50 + totalBoardH / 2;
@@ -328,9 +329,8 @@ export class GameScene extends Phaser.Scene {
     const rightW = 220;
     const w = width - leftW - rightW;
     const h = height - 50;
-    const cellW = Math.min(Math.floor((w - 40) / 4), 100);
-    const cellH = Math.min(Math.floor((h - 120) / 4), 130);
     const gap = 4;
+    const { cellW, cellH } = this.getBoardCellSize(w - 40, h - 120, gap);
     const totalBoardH = 4 * cellH + 3 * gap;
     const boardX = leftW + w / 2;
     const boardY = 50 + 50 + totalBoardH / 2;
@@ -461,6 +461,24 @@ export class GameScene extends Phaser.Scene {
       ease: 'Power2',
       onComplete: () => text.destroy(),
     });
+  }
+
+  private getCardSizeForArea(maxWidth: number, maxHeight: number): { cardWidth: number; cardHeight: number } {
+    const cardHeight = Math.floor(Math.min(maxHeight, maxWidth / CARD_ASPECT_RATIO));
+    const cardWidth = Math.floor(cardHeight * CARD_ASPECT_RATIO);
+    return { cardWidth, cardHeight };
+  }
+
+  private getBoardCellSize(
+    availableWidth: number,
+    availableHeight: number,
+    gap: number
+  ): { cellW: number; cellH: number } {
+    const maxCellW = (availableWidth - 3 * gap) / 4;
+    const maxCellH = (availableHeight - 3 * gap) / 4;
+    const cellH = Math.floor(Math.min(maxCellH, maxCellW / CARD_ASPECT_RATIO));
+    const cellW = Math.floor(cellH * CARD_ASPECT_RATIO);
+    return { cellW, cellH };
   }
 
   shutdown(): void {

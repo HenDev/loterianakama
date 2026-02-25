@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { LotteryCard } from '../types';
-import { CARD_COLORS } from '../data/cards';
+import { CARD_ATLAS_KEY, getCardFrameById } from '../data/cards';
 
 export interface CardComponentOptions {
   x: number;
@@ -15,10 +15,10 @@ export interface CardComponentOptions {
 
 export class CardComponent extends Phaser.GameObjects.Container {
   private card: LotteryCard;
-  private bg!: Phaser.GameObjects.Rectangle;
+  private border!: Phaser.GameObjects.Rectangle;
+  private hoverBorder!: Phaser.GameObjects.Rectangle;
   private markOverlay!: Phaser.GameObjects.Rectangle;
-  private nameText!: Phaser.GameObjects.Text;
-  private numText!: Phaser.GameObjects.Text;
+  private frijol!: Phaser.GameObjects.Arc;
   private marked = false;
   private cardWidth: number;
   private cardHeight: number;
@@ -41,10 +41,10 @@ export class CardComponent extends Phaser.GameObjects.Container {
         if (!this.marked) options.onMark!(this.card.id);
       });
       this.on('pointerover', () => {
-        if (!this.marked) this.bg.setStrokeStyle(2, 0xffffff, 1);
+        if (!this.marked) this.hoverBorder.setVisible(true);
       });
       this.on('pointerout', () => {
-        this.bg.setStrokeStyle(2, 0x000000, 0.3);
+        this.hoverBorder.setVisible(false);
       });
     }
 
@@ -54,66 +54,44 @@ export class CardComponent extends Phaser.GameObjects.Container {
   private buildCard(): void {
     const w = this.cardWidth;
     const h = this.cardHeight;
-    const color = CARD_COLORS[this.card.category] ?? 0x555555;
 
-    this.bg = this.scene.add.rectangle(0, 0, w, h, color);
-    this.bg.setStrokeStyle(2, 0x000000, 0.3);
+    const frame = getCardFrameById(this.card.id);
+    const cardImage = this.scene.add.image(0, 0, CARD_ATLAS_KEY, frame);
+    cardImage.setDisplaySize(w, h);
 
-    const innerBg = this.scene.add.rectangle(0, 0, w - 6, h - 6, 0xffffff, 0.08);
+    this.border = this.scene.add.rectangle(0, 0, w, h);
+    this.border.setFillStyle(0x000000, 0);
+    this.border.setStrokeStyle(2, 0x111111, 0.5);
 
-    this.numText = this.scene.add.text(-w / 2 + 5, -h / 2 + 4, String(this.card.id), {
-      fontSize: `${Math.floor(h * 0.16)}px`,
-      color: '#ffffff',
-      fontFamily: 'Georgia, serif',
-      fontStyle: 'bold',
-    });
+    this.hoverBorder = this.scene.add.rectangle(0, 0, w + 2, h + 2);
+    this.hoverBorder.setFillStyle(0x000000, 0);
+    this.hoverBorder.setStrokeStyle(3, 0xffffff, 0.95);
+    this.hoverBorder.setVisible(false);
 
-    this.nameText = this.scene.add.text(0, -h * 0.08, this.card.name, {
-      fontSize: `${Math.floor(h * 0.14)}px`,
-      color: '#ffffff',
-      fontFamily: 'Georgia, serif',
-      fontStyle: 'bold',
-      wordWrap: { width: w - 8 },
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    const verseText = this.scene.add.text(0, h * 0.3, this.card.verse, {
-      fontSize: `${Math.max(8, Math.floor(h * 0.09))}px`,
-      color: '#ffffffcc',
-      fontFamily: 'Georgia, serif',
-      fontStyle: 'italic',
-      wordWrap: { width: w - 10 },
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    this.markOverlay = this.scene.add.rectangle(0, 0, w, h, 0xff3300, 0.7);
+    this.markOverlay = this.scene.add.rectangle(0, 0, w, h, 0x101010, 0.28);
     this.markOverlay.setVisible(false);
 
-    const frijolText = this.scene.add.text(0, 0, '●', {
-      fontSize: `${Math.floor(h * 0.4)}px`,
-      color: '#8B4513',
-    }).setOrigin(0.5, 0.5);
-    frijolText.setVisible(false);
-    (this.markOverlay as unknown as { frijol: Phaser.GameObjects.Text }).frijol = frijolText;
+    const beanRadius = Math.max(8, Math.floor(Math.min(w, h) * 0.14));
+    this.frijol = this.scene.add.circle(0, 0, beanRadius, 0x6f3b19, 0.95);
+    this.frijol.setStrokeStyle(2, 0xf0d9a0, 0.9);
+    this.frijol.setVisible(false);
 
-    this.add([this.bg, innerBg, this.numText, this.nameText, verseText, this.markOverlay, frijolText]);
+    this.add([cardImage, this.border, this.hoverBorder, this.markOverlay, this.frijol]);
   }
 
   mark(animate = true): void {
     if (this.marked) return;
     this.marked = true;
     this.markOverlay.setVisible(true);
-
-    const frijol = (this.markOverlay as unknown as { frijol: Phaser.GameObjects.Text }).frijol;
-    frijol.setVisible(true);
+    this.frijol.setVisible(true);
 
     if (animate && this.scene) {
       this.markOverlay.setAlpha(0);
-      frijol.setAlpha(0);
+      this.frijol.setAlpha(0);
       this.scene.tweens.add({
-        targets: [this.markOverlay, frijol],
+        targets: [this.markOverlay, this.frijol],
         alpha: 1,
-        duration: 300,
+        duration: 220,
         ease: 'Power2',
       });
       this.scene.tweens.add({
@@ -130,8 +108,7 @@ export class CardComponent extends Phaser.GameObjects.Container {
   unmark(): void {
     this.marked = false;
     this.markOverlay.setVisible(false);
-    const frijol = (this.markOverlay as unknown as { frijol: Phaser.GameObjects.Text }).frijol;
-    frijol.setVisible(false);
+    this.frijol.setVisible(false);
   }
 
   isMarked(): boolean {
@@ -152,7 +129,8 @@ export class CardComponent extends Phaser.GameObjects.Container {
         duration: 200,
         ease: 'Power2',
       });
-      this.bg.setStrokeStyle(3, 0xffff00, 1);
+      this.hoverBorder.setVisible(true);
+      this.hoverBorder.setStrokeStyle(3, 0xffff66, 1);
     } else {
       this.scene.tweens.add({
         targets: this,
@@ -161,7 +139,8 @@ export class CardComponent extends Phaser.GameObjects.Container {
         duration: 200,
         ease: 'Power2',
       });
-      this.bg.setStrokeStyle(2, 0x000000, 0.3);
+      this.hoverBorder.setVisible(false);
+      this.hoverBorder.setStrokeStyle(3, 0xffffff, 0.95);
     }
   }
 }

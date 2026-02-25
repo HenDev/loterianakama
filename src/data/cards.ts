@@ -76,3 +76,68 @@ export const CARD_ICONS: Record<string, string> = {
 export function getCardById(id: number): LotteryCard | undefined {
   return LOTERIA_CARDS.find(c => c.id === id);
 }
+
+export const CARD_ATLAS_KEY = 'cartas_loteria';
+export const CARD_ASPECT_RATIO = 204 / 314;
+export const CARD_BACK_FRAME = 'reverso_rojo';
+
+const CARD_FRAMES_IN_ORDER = [
+  'carta_01_gallo',
+  'carta_02_diablito',
+  'carta_03_dama',
+  'carta_04_catrin',
+  'carta_05_paraguas',
+  'carta_06_sirena',
+  'carta_07_escalera',
+  'carta_08_botella',
+  'carta_09_barril',
+  'carta_10_arbol',
+  'carta_11_melon',
+  'carta_12_valiente',
+  'carta_13_gorrito',
+  'carta_14_muerte',
+  'carta_15_pera',
+  'carta_16_bandera',
+  'carta_17_bandolon',
+  'carta_18_violoncello',
+  'carta_19_garza',
+  'carta_20_pajaro',
+  'carta_21_mano',
+  'carta_22_bota',
+  'carta_23_luna',
+  'carta_24_cotorro',
+  'carta_25_borracho',
+  'carta_26_negrito',
+  'carta_27_corazon',
+  'carta_28_sandia',
+  'carta_29_tambor',
+  'carta_30_camaron',
+  'carta_31_jaras',
+  'carta_32_musico',
+  'carta_33_arana',
+  'carta_34_soldado',
+  'carta_35_estrella',
+  'carta_36_cazo',
+  'carta_37_mundo',
+  'carta_38_apache',
+  'carta_39_nopal',
+  'carta_40_alacran',
+  'carta_41_rosa',
+  'carta_42_calavera',
+  'carta_43_campana',
+  'carta_44_cantarito',
+  'carta_45_venado',
+  'carta_46_sol',
+  'carta_47_corona',
+  'carta_48_chalupa',
+  'carta_49_pino',
+  'carta_50_pescado',
+  'carta_51_palma',
+  'carta_52_maceta',
+  'carta_53_arpa',
+  'carta_54_rana',
+] as const;
+
+export function getCardFrameById(id: number): string {
+  return CARD_FRAMES_IN_ORDER[id - 1] ?? CARD_FRAMES_IN_ORDER[0];
+}

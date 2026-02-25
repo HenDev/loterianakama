@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import cartasAtlasPng from '../assets/cartas_loteria.png';
+import cartasAtlasJson from '../assets/cartas_loteria.json';
+import { CARD_ATLAS_KEY } from '../data/cards';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -9,7 +12,7 @@ export class BootScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     const bg = this.add.rectangle(width / 2, height / 2, width, height, 0x0d1b2a);
-    this.add.text(width / 2, height * 0.4, 'LOTERÍA MEXICANA', {
+    this.add.text(width / 2, height * 0.4, 'LOTERIA MEXICANA', {
       fontSize: '42px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
@@ -36,13 +39,15 @@ export class BootScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.load.on('progress', (value: number) => {
-      progressBar.setScale(value * 310 / 4, 1);
+      progressBar.setScale((value * 310) / 4, 1);
       progressBar.setDisplaySize(value * 310, 14);
     });
 
     this.load.on('complete', () => {
-      loadingText.setText('¡Listo!');
+      loadingText.setText('Listo!');
     });
+
+    this.load.atlas(CARD_ATLAS_KEY, cartasAtlasPng, cartasAtlasJson);
 
     void bg;
   }
