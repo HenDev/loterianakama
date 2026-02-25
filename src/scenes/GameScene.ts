@@ -3,6 +3,7 @@ import type { GameState, INetworkService, NetworkEvent, Player, LotteryCard, Win
 import { getMockNetworkService } from '../services/MockNetworkService';
 import { getNakamaNetworkService } from '../services/NakamaNetworkService';
 import { getAudioService } from '../services/AudioService';
+import { getVoiceService } from '../services/VoiceService';
 import { BoardComponent } from '../components/BoardComponent';
 import { DeckCardComponent } from '../components/DeckCardComponent';
 import { PlayerListComponent } from '../components/PlayerListComponent';
@@ -66,6 +67,8 @@ export class GameScene extends Phaser.Scene {
         timestamp: Date.now(),
       });
     }
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
   }
 
   private buildBackground(width: number, height: number): void {
@@ -350,6 +353,7 @@ export class GameScene extends Phaser.Scene {
 
   private onCardDrawn(card: LotteryCard): void {
     getAudioService().play('card_flip');
+    getVoiceService().speakCardName(card.name);
     this.deckCardComp?.showCard(card);
     this.currentCardLabel?.setText(`"${card.verse}"`);
     this.statusText?.setText(`Carta: ${card.id}. ${card.name}`);
@@ -482,6 +486,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    getVoiceService().stop();
     this.networkService.off('GAME_STATE_SYNC', this.boundOnSync);
     this.networkService.off('CARD_DRAWN', this.boundOnCardDrawn);
     this.networkService.off('WIN_VALIDATED', this.boundOnWinValidated);

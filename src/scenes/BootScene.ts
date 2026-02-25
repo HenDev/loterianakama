@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import cartasAtlasPng from '../assets/cartas_loteria.png';
 import cartasAtlasJson from '../assets/cartas_loteria.json';
 import { CARD_ATLAS_KEY } from '../data/cards';
+import { getVoiceService } from '../services/VoiceService';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -53,6 +54,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    getVoiceService().preloadVoices();
     this.scene.start('LobbyScene');
   }
 }
