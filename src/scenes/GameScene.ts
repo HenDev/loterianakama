@@ -204,11 +204,11 @@ export class GameScene extends Phaser.Scene {
       onMark: (cardId) => this.onMarkCard(cardId),
     });
 
-    this.createLoteriaButton(x + w / 2, y + h - 40);
+    this.createLoteriaButton(x + w / 2, y + h - 32);
 
-    this.cardsDrawnCount = this.add.text(x + w / 2, y + h * 0.98, 'Cartas cantadas: 0 / 54', {
+    this.cardsDrawnCount = this.add.text(x + w / 2, y + h * 0.985, 'Cartas cantadas: 0 / 54', {
       fontSize: '11px',
-      color: '#666666',
+      color: '#cdcdcd',
       fontFamily: 'monospace',
     }).setOrigin(0.5, 1);
   }

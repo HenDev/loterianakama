@@ -20,7 +20,7 @@ export class PlayerListComponent extends Phaser.GameObjects.Container {
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
       fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0.5);
     this.add(title);
 
     players.forEach((player, i) => {

@@ -19,9 +19,9 @@ export class LobbyScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.buildBackground(width, height);
     this.buildTitle(width, height);
-    this.buildDecoration(width, height);
+    //this.buildDecoration(width, height);
     this.buildStartPanel(width, height);
-    this.buildRulesPanel(width, height);
+    //this.buildRulesPanel(width, height);
   }
 
   private buildBackground(width: number, height: number): void {
@@ -62,7 +62,7 @@ export class LobbyScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
 
-    void titleBg, subtitle;
+    void titleBg, title, subtitle;
   }
 
   private buildDecoration(width: number, height: number): void {
@@ -94,29 +94,29 @@ export class LobbyScene extends Phaser.Scene {
 
   private buildStartPanel(width: number, height: number): void {
     const panelX = width / 2;
-    const panelY = height * 0.42;
+    const panelY = height * 0.62;
 
-    const panel = this.add.rectangle(panelX, panelY, 420, 215, 0x0a0a1a, 0.9);
+    const panel = this.add.rectangle(panelX, panelY, 700, 480, 0x0a0a1a, 0.9);
     panel.setStrokeStyle(2, 0xd4af37, 0.8);
 
-    this.add.text(panelX, panelY - 100, 'UN JUGADOR — Modo de Victoria', {
-      fontSize: '12px',
+    this.add.text(panelX, panelY - 145, 'UN JUGADOR — Modo de Victoria', {
+      fontSize: '17px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
-    const lineaBtn = this.createButton(panelX - 80, panelY - 70, '  Línea  ', 0x2c5364, () => {
+    const lineaBtn = this.createButton(panelX - 100, panelY - 95, '  Línea  ', 0x2c5364, () => {
       getAudioService().play('button');
       this.startGame('linea');
-    });
+    }, 170, 58, 20);
 
-    const tablaBtn = this.createButton(panelX + 80, panelY - 70, '  Tabla  ', 0x1a3a2a, () => {
+    const tablaBtn = this.createButton(panelX + 100, panelY - 95, '  Tabla  ', 0x1a3a2a, () => {
       getAudioService().play('button');
       this.startGame('tabla');
-    });
+    }, 170, 58, 20);
 
-    this.add.text(panelX, panelY - 30, 'Jugarás contra 3 jugadores simulados', {
-      fontSize: '12px',
+    this.add.text(panelX, panelY - 40, 'Jugarás contra 3 jugadores simulados', {
+      fontSize: '16px',
       color: '#777777',
       fontFamily: 'Georgia, serif',
       fontStyle: 'italic',
@@ -124,29 +124,30 @@ export class LobbyScene extends Phaser.Scene {
 
     const divider = this.add.graphics();
     divider.lineStyle(1, 0xd4af37, 0.3);
-    divider.lineBetween(panelX - 180, panelY + 5, panelX + 180, panelY + 5);
+    divider.lineBetween(panelX - 220, panelY + 10, panelX + 220, panelY + 10);
 
-    this.add.text(panelX, panelY + 22, 'MULTIJUGADOR EN LÍNEA', {
-      fontSize: '12px',
+    this.add.text(panelX, panelY + 42, 'MULTIJUGADOR EN LÍNEA', {
+      fontSize: '17px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
-    const multiBtn = this.createButton(panelX, panelY + 52, '  Jugar en Línea  ', 0x1a2a4a, () => {
+    const multiBtn = this.createButton(panelX, panelY + 95, '  Jugar en Línea  ', 0x1a2a4a, () => {
       getAudioService().play('button');
       this.scene.start('NakamaMatchScene');
-    }, 200);
+    }, 290, 62, 21);
 
-    const hint = this.add.text(panelX, panelY + 90, 'Crea o únete a una partida con amigos', {
-      fontSize: '12px',
+    const hint = this.add.text(panelX, panelY + 150, 'Crea o únete a una partida con amigos', {
+      fontSize: '15px',
       color: '#555555',
       fontFamily: 'Georgia, serif',
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    const muteBtnText = this.add.text(panelX + 185, panelY - 80, '🔊', {
-      fontSize: '20px',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const muteBtnText = this.add.text(panelX + 215, panelY - 145, '🔊', {
+      fontSize: '30px',
+    }).setOrigin(0.5).setInteractive(new Phaser.Geom.Circle(0, 0, 24), Phaser.Geom.Circle.Contains);
+    if (muteBtnText.input) muteBtnText.input.cursor = 'pointer';
 
     muteBtnText.on('pointerdown', () => {
       const audio = getAudioService();
@@ -154,10 +155,10 @@ export class LobbyScene extends Phaser.Scene {
       muteBtnText.setText(audio.isMuted() ? '🔇' : '🔊');
     });
 
-    const fullscreenBtnText = this.add.text(panelX - 185, panelY - 80, '⛶', {
-      fontSize: '20px',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
+    const fullscreenBtnText = this.add.text(panelX - 215, panelY - 145, '⛶', {
+      fontSize: '30px',
+    }).setOrigin(0.5).setInteractive(new Phaser.Geom.Circle(0, 0, 24), Phaser.Geom.Circle.Contains);
+    if (fullscreenBtnText.input) fullscreenBtnText.input.cursor = 'pointer';
     const updateFullscreenIcon = () => {
       fullscreenBtnText.setText(this.scale.isFullscreen ? '✕' : '⛶');
     };
@@ -203,12 +204,14 @@ export class LobbyScene extends Phaser.Scene {
     color: number,
     onClick: () => void,
     btnWidth = 130,
+    btnHeight = 44,
+    fontSize = 16,
   ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
-    const bg = this.add.rectangle(0, 0, btnWidth, 44, color);
+    const bg = this.add.rectangle(0, 0, btnWidth, btnHeight, color);
     bg.setStrokeStyle(2, 0xd4af37, 0.7);
     const text = this.add.text(0, 0, label, {
-      fontSize: '16px',
+      fontSize: `${fontSize}px`,
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
       fontStyle: 'bold',
@@ -216,7 +219,7 @@ export class LobbyScene extends Phaser.Scene {
 
     container.add([bg, text]);
     container.setInteractive(
-      new Phaser.Geom.Rectangle(-btnWidth / 2, -22, btnWidth, 44),
+      new Phaser.Geom.Rectangle(-btnWidth / 2, -btnHeight / 2, btnWidth, btnHeight),
       Phaser.Geom.Rectangle.Contains
     );
     container.on('pointerdown', onClick);
@@ -241,3 +244,4 @@ export class LobbyScene extends Phaser.Scene {
     });
   }
 }
+
