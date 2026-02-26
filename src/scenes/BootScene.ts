@@ -2,6 +2,10 @@ import Phaser from 'phaser';
 import cartasAtlasPng from '../assets/cartas_loteria.png';
 import cartasAtlasJson from '../assets/cartas_loteria.json';
 import { CARD_ATLAS_KEY } from '../data/cards';
+import corcholatasAtlasPng from '../assets/corcholatas.png';
+import corcholatasAtlasJson from '../assets/corcholatas.json';
+import frijolPng from '../assets/frijol.png';
+import { CORCHOLATA_ATLAS_KEY } from '../data/corcholatas';
 import { getVoiceService } from '../services/VoiceService';
 
 export class BootScene extends Phaser.Scene {
@@ -49,6 +53,8 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.load.atlas(CARD_ATLAS_KEY, cartasAtlasPng, cartasAtlasJson);
+    this.load.atlas(CORCHOLATA_ATLAS_KEY, corcholatasAtlasPng, corcholatasAtlasJson);
+    this.load.image('frijol', frijolPng);
 
     void bg;
   }

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "image": "corcholatas_atlas_512.png",
+    "image": "corcholatas.png",
     "size": { "w": 512, "h": 512 },
     "cell": { "w": 64, "h": 64 },
     "grid": { "cols": 8, "rows": 8 },

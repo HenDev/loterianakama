@@ -13,7 +13,7 @@ export const LOTERIA_CARDS: LotteryCard[] = [
   { id: 10, name: 'El Árbol',       verse: 'El que a buen árbol se arrima, buena sombra le cobija.',        category: 'nature'    },
   { id: 11, name: 'El Melón',       verse: 'El melón y el casamiento, ha de ser acertamiento.',             category: 'nature'    },
   { id: 12, name: 'El Valiente',    verse: 'Por aquí pasó el valiente, que a nadie le tiene miedo.',        category: 'character' },
-  { id: 13, name: 'El Gordo',       verse: 'Tanto buche y nada de queso.',                                  category: 'character' },
+  { id: 13, name: 'El Gorrito',     verse: 'No se te vaya a resfriar.',                                  category: 'character' },
   { id: 14, name: 'La Muerte',      verse: 'La muerte tilica y flaca, a todos igual les llega.',            category: 'celestial' },
   { id: 15, name: 'La Pera',        verse: 'Al que le dan no escoge.',                                      category: 'nature'    },
   { id: 16, name: 'La Bandera',     verse: 'Verde, blanco y colorado, la bandera del soldado.',             category: 'object'    },

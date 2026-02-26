@@ -14,6 +14,8 @@ interface BoardOptions {
   interactive: boolean;
   onMark?: (cardId: number) => void;
   playerName?: string;
+  corcholataFrame?: string;
+  corcholataRotationSeed?: number;
 }
 
 export class BoardComponent extends Phaser.GameObjects.Container {
@@ -70,6 +72,8 @@ export class BoardComponent extends Phaser.GameObjects.Container {
         card: cardData,
         marked: cell.marked,
         interactive,
+        corcholataFrame: this.opts.corcholataFrame,
+        corcholataRotationSeed: this.opts.corcholataRotationSeed,
         onMark: (cardId) => {
           getAudioService().play('mark');
           onMark?.(cardId);

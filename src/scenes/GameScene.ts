@@ -8,6 +8,7 @@ import { BoardComponent } from '../components/BoardComponent';
 import { DeckCardComponent } from '../components/DeckCardComponent';
 import { PlayerListComponent } from '../components/PlayerListComponent';
 import { CARD_ASPECT_RATIO } from '../data/cards';
+import { CORCHOLATA_ATLAS_KEY, CORCHOLATA_FRAME_PREFIX } from '../data/corcholatas';
 
 export class GameScene extends Phaser.Scene {
   private playerId = '';
@@ -31,6 +32,9 @@ export class GameScene extends Phaser.Scene {
   private boundOnWinValidated!: (e: NetworkEvent) => void;
   private boundOnWinInvalid!: (e: NetworkEvent) => void;
   private hasShownResults = false;
+  private selectedCorcholataFrame?: string;
+  private corcholataRotationSeed = 0;
+  private static readonly TEMP_MARK_TEXTURE_KEY = 'frijol';
 
   constructor() {
     super({ key: 'GameScene' });
@@ -51,6 +55,8 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale;
+    this.selectMatchCorcholata();
+    this.selectedCorcholataFrame = GameScene.TEMP_MARK_TEXTURE_KEY;
     this.buildBackground(width, height);
     this.buildLayout(width, height);
     this.setupNetworkHandlers();
@@ -193,6 +199,8 @@ export class GameScene extends Phaser.Scene {
       cellHeight: cellH,
       gap,
       interactive: true,
+      corcholataFrame: this.selectedCorcholataFrame,
+      corcholataRotationSeed: this.corcholataRotationSeed,
       onMark: (cardId) => this.onMarkCard(cardId),
     });
 
@@ -347,6 +355,8 @@ export class GameScene extends Phaser.Scene {
       cellHeight: cellH,
       gap,
       interactive: player.isHuman && !player.isWinner,
+      corcholataFrame: this.selectedCorcholataFrame,
+      corcholataRotationSeed: this.corcholataRotationSeed,
       onMark: (cardId) => this.onMarkCard(cardId),
     });
   }
@@ -483,6 +493,26 @@ export class GameScene extends Phaser.Scene {
     const cellH = Math.floor(Math.min(maxCellH, maxCellW / CARD_ASPECT_RATIO));
     const cellW = Math.floor(cellH * CARD_ASPECT_RATIO);
     return { cellW, cellH };
+  }
+
+  private selectMatchCorcholata(): void {
+    this.corcholataRotationSeed = Phaser.Math.Between(1, 1_000_000);
+    if (!this.textures.exists(CORCHOLATA_ATLAS_KEY)) {
+      this.selectedCorcholataFrame = undefined;
+      return;
+    }
+
+    const frames = this.textures
+      .get(CORCHOLATA_ATLAS_KEY)
+      .getFrameNames()
+      .filter(frame => frame.startsWith(CORCHOLATA_FRAME_PREFIX));
+
+    if (frames.length === 0) {
+      this.selectedCorcholataFrame = undefined;
+      return;
+    }
+
+    this.selectedCorcholataFrame = Phaser.Utils.Array.GetRandom(frames);
   }
 
   shutdown(): void {
