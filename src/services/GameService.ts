@@ -10,12 +10,13 @@ import type {
 import { LOTERIA_CARDS } from '../data/cards';
 import { shuffleArray, pickRandom, generateUUID } from '../utils/shuffle';
 import { validateClaim } from '../utils/validation';
+import { cloneWinCondition, DEFAULT_TARGET_WIN, normalizeWinCondition } from '../utils/winCondition';
 
 export const DEFAULT_CONFIG: GameConfig = {
   maxPlayers: 6,
   boardSize: 4,
   turnIntervalMs: 3000,
-  targetWin: 'linea',
+  targetWin: cloneWinCondition(DEFAULT_TARGET_WIN),
   mockPlayerCount: 3,
 };
 
@@ -23,7 +24,11 @@ export class GameService {
   private config: GameConfig;
 
   constructor(config: Partial<GameConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config = {
+      ...DEFAULT_CONFIG,
+      ...config,
+      targetWin: normalizeWinCondition(config.targetWin ?? DEFAULT_CONFIG.targetWin),
+    };
   }
 
   createInitialState(hostId: string, hostName: string): GameState {
@@ -38,7 +43,7 @@ export class GameService {
       status: 'waiting',
       winner: null,
       turnInterval: this.config.turnIntervalMs,
-      targetWin: this.config.targetWin,
+      targetWin: cloneWinCondition(this.config.targetWin),
       hostId,
     };
   }
@@ -78,6 +83,7 @@ export class GameService {
       currentCard: null,
       status: 'playing',
       winner: null,
+      targetWin: cloneWinCondition(state.targetWin),
       players: state.players.map(p => ({
         ...p,
         board: this.generateBoard(),
@@ -142,7 +148,11 @@ export class GameService {
     const result = validateClaim(player.board, state.drawnCards, condition);
 
     if (result.isWin) {
-      const winner = { ...player, isWinner: true, winCondition: condition };
+      const winner = {
+        ...player,
+        isWinner: true,
+        winCondition: result.condition ? cloneWinCondition(result.condition) : normalizeWinCondition(condition),
+      };
       const players = state.players.map(p => (p.id === playerId ? winner : p));
       return {
         state: { ...state, status: 'finished', winner, players },

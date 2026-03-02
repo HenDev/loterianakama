@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GameService, DEFAULT_CONFIG } from '../services/GameService';
 import { LOTERIA_CARDS } from '../data/cards';
 import type { GameState, BoardCell } from '../types';
+import { withLineTypes } from '../utils/winCondition';
 
 describe('GameService', () => {
   let service: GameService;
@@ -187,14 +188,14 @@ describe('GameService', () => {
         ),
       };
 
-      const { result } = service.processClaim(state, HOST_ID, 'linea');
+      const { result } = service.processClaim(state, HOST_ID, withLineTypes(['horizontal']));
       expect(result.isWin).toBe(true);
-      expect(result.condition).toBe('linea');
+      expect(result.condition).toEqual(withLineTypes(['horizontal']));
     });
 
     it('debe rechazar reclamo inválido', () => {
       state = service.startGame(state);
-      const { result } = service.processClaim(state, HOST_ID, 'linea');
+      const { result } = service.processClaim(state, HOST_ID, withLineTypes(['horizontal']));
       expect(result.isWin).toBe(false);
     });
 
@@ -213,7 +214,7 @@ describe('GameService', () => {
         ),
       };
 
-      const { state: newState } = service.processClaim(state, HOST_ID, 'linea');
+      const { state: newState } = service.processClaim(state, HOST_ID, withLineTypes(['horizontal']));
       const winner = newState.players.find(p => p.id === HOST_ID)!;
       expect(winner.isWinner).toBe(true);
       expect(newState.status).toBe('finished');

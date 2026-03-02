@@ -12,7 +12,25 @@ export interface BoardCell {
   marked: boolean;
 }
 
-export type WinCondition = 'linea' | 'tabla';
+export type WinConditionType = 'linea' | 'cuadro' | 'tabla';
+export type LinePattern = 'horizontal' | 'vertical' | 'diagonal';
+export type SquarePattern = 'esquinas' | 'centro';
+
+export interface LineWinCondition {
+  type: 'linea';
+  lineTypes: LinePattern[];
+}
+
+export interface SquareWinCondition {
+  type: 'cuadro';
+  squareTypes: SquarePattern[];
+}
+
+export interface FullBoardWinCondition {
+  type: 'tabla';
+}
+
+export type WinCondition = LineWinCondition | SquareWinCondition | FullBoardWinCondition;
 
 export interface Player {
   id: string;
@@ -123,4 +141,19 @@ export interface GameConfig {
   turnIntervalMs: number;
   targetWin: WinCondition;
   mockPlayerCount: number;
+}
+
+export type AuthProvider = 'guest' | 'google';
+
+export interface UserPreferences {
+  calledCardFeedbackEnabled: boolean;
+}
+
+export interface AuthProfile {
+  userId: string;
+  username: string;
+  provider: AuthProvider;
+  googleLinked: boolean;
+  deviceId: string;
+  preferences: UserPreferences;
 }

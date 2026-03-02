@@ -86,7 +86,7 @@ describe('VoiceService', () => {
 
     const utterance = speak.mock.calls[0][0] as MockUtterance;
     expect((utterance.voice as SpeechSynthesisVoice).voiceURI).toBe('es-mx-paulina');
-    expect(utterance.rate).toBe(1.12);
+    expect(utterance.rate).toBe(1.2);
   });
 
   it('si se desactiva la voz, no debe hablar', () => {

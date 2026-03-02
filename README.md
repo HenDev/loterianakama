@@ -269,6 +269,49 @@ Tests       55 passed
 
 ---
 
+## Preferencia por usuario en Nakama
+
+El aviso visual y el mensaje `¡Tienes "..."!` al cantar una carta propia dependen de una preferencia por usuario.
+
+- Variable: `calledCardFeedbackEnabled`
+- Tipo: `boolean`
+- Valor por defecto si no existe el objeto o la variable: `false`
+- Comportamiento:
+  - `true`: muestra el mensaje y resalta la carta si el jugador tiene esa carta
+  - `false`: no muestra mensaje ni highlight automático
+
+### Storage object esperado en Nakama
+
+- `collection`: `preferences`
+- `key`: `gameplay`
+- `permission_read`: `0`
+- `permission_write`: `1`
+
+Ejemplo:
+
+```json
+{
+  "collection": "preferences",
+  "key": "gameplay",
+  "user_id": "<user_id_del_jugador>",
+  "permission_read": 0,
+  "permission_write": 1,
+  "value": {
+    "calledCardFeedbackEnabled": true
+  }
+}
+```
+
+Si el objeto no existe, o existe pero no trae `calledCardFeedbackEnabled`, el cliente lo toma como:
+
+```json
+{
+  "calledCardFeedbackEnabled": false
+}
+```
+
+---
+
 ## Tecnologías
 
 - [Phaser 3](https://phaser.io) — Motor de juego

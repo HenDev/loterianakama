@@ -1,93 +1,90 @@
-import { describe, it, expect } from 'vitest';
-import { checkLinea, checkTabla, validateClaim } from '../utils/validation';
+import { describe, expect, it } from 'vitest';
+import { checkCuadro, checkLinea, checkTabla, validateClaim } from '../utils/validation';
 import type { BoardCell } from '../types';
+import { withLineTypes, withSquareTypes } from '../utils/winCondition';
 
 function makeBoard(markedIndices: number[]): BoardCell[] {
-  return Array.from({ length: 16 }, (_, i) => ({
-    cardId: i + 1,
-    marked: markedIndices.includes(i),
+  return Array.from({ length: 16 }, (_, index) => ({
+    cardId: index + 1,
+    marked: markedIndices.includes(index),
   }));
 }
 
 describe('checkLinea', () => {
-  it('debe detectar primera fila completa', () => {
+  it('detecta una fila horizontal cuando esta habilitada', () => {
     const board = makeBoard([0, 1, 2, 3]);
-    const result = checkLinea(board);
+    const result = checkLinea(board, withLineTypes(['horizontal']));
+
     expect(result.isWin).toBe(true);
-    expect(result.condition).toBe('linea');
+    expect(result.condition).toEqual(withLineTypes(['horizontal']));
   });
 
-  it('debe detectar última fila completa', () => {
-    const board = makeBoard([12, 13, 14, 15]);
-    const result = checkLinea(board);
-    expect(result.isWin).toBe(true);
-  });
-
-  it('debe detectar primera columna completa', () => {
+  it('no detecta columnas si solo se permiten horizontales', () => {
     const board = makeBoard([0, 4, 8, 12]);
-    const result = checkLinea(board);
-    expect(result.isWin).toBe(true);
+    const result = checkLinea(board, withLineTypes(['horizontal']));
+
+    expect(result.isWin).toBe(false);
   });
 
-  it('debe detectar diagonal principal completa', () => {
+  it('detecta diagonal cuando ese subtipo esta habilitado', () => {
     const board = makeBoard([0, 5, 10, 15]);
-    const result = checkLinea(board);
+    const result = checkLinea(board, withLineTypes(['diagonal']));
+
     expect(result.isWin).toBe(true);
+    expect(result.condition).toEqual(withLineTypes(['diagonal']));
   });
+});
 
-  it('debe detectar diagonal anti completa', () => {
-    const board = makeBoard([3, 6, 9, 12]);
-    const result = checkLinea(board);
+describe('checkCuadro', () => {
+  it('detecta las cuatro esquinas', () => {
+    const board = makeBoard([0, 3, 12, 15]);
+    const result = checkCuadro(board, withSquareTypes(['esquinas']));
+
     expect(result.isWin).toBe(true);
+    expect(result.condition).toEqual(withSquareTypes(['esquinas']));
   });
 
-  it('no debe detectar línea incompleta', () => {
-    const board = makeBoard([0, 1, 2]);
-    const result = checkLinea(board);
-    expect(result.isWin).toBe(false);
-  });
+  it('detecta las cuatro cartas centrales', () => {
+    const board = makeBoard([5, 6, 9, 10]);
+    const result = checkCuadro(board, withSquareTypes(['centro']));
 
-  it('no debe detectar tablero vacío como ganador', () => {
-    const board = makeBoard([]);
-    const result = checkLinea(board);
-    expect(result.isWin).toBe(false);
+    expect(result.isWin).toBe(true);
+    expect(result.condition).toEqual(withSquareTypes(['centro']));
   });
 });
 
 describe('checkTabla', () => {
-  it('debe detectar tablero completo', () => {
-    const board = makeBoard(Array.from({ length: 16 }, (_, i) => i));
+  it('detecta tabla llena', () => {
+    const board = makeBoard(Array.from({ length: 16 }, (_, index) => index));
     const result = checkTabla(board);
-    expect(result.isWin).toBe(true);
-    expect(result.condition).toBe('tabla');
-  });
 
-  it('no debe detectar tabla con 15 marcadas', () => {
-    const board = makeBoard(Array.from({ length: 15 }, (_, i) => i));
-    const result = checkTabla(board);
-    expect(result.isWin).toBe(false);
+    expect(result.isWin).toBe(true);
+    expect(result.condition).toEqual({ type: 'tabla' });
   });
 });
 
 describe('validateClaim', () => {
-  it('debe validar reclamo legítimo de línea', () => {
+  it('valida un reclamo legitimo de linea configurada', () => {
     const board = makeBoard([0, 1, 2, 3]);
     const drawnCards = [1, 2, 3, 4];
-    const result = validateClaim(board, drawnCards, 'linea');
+    const result = validateClaim(board, drawnCards, withLineTypes(['horizontal']));
+
     expect(result.isWin).toBe(true);
   });
 
-  it('debe rechazar reclamo con cartas no cantadas', () => {
+  it('rechaza reclamos con cartas no cantadas', () => {
     const board = makeBoard([0, 1, 2, 3]);
     const drawnCards = [1, 2, 3];
-    const result = validateClaim(board, drawnCards, 'linea');
+    const result = validateClaim(board, drawnCards, withLineTypes(['horizontal']));
+
     expect(result.isWin).toBe(false);
   });
 
-  it('debe rechazar reclamo sin línea completa', () => {
-    const board = makeBoard([0, 1]);
-    const drawnCards = [1, 2];
-    const result = validateClaim(board, drawnCards, 'linea');
+  it('rechaza reclamos sin patron valido', () => {
+    const board = makeBoard([0, 1, 2, 3]);
+    const drawnCards = [1, 2, 3, 4];
+    const result = validateClaim(board, drawnCards, withLineTypes(['vertical']));
+
     expect(result.isWin).toBe(false);
   });
 });

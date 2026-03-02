@@ -110,7 +110,8 @@ export class BoardComponent extends Phaser.GameObjects.Container {
   }
 
   destroy(fromScene?: boolean): void {
-    this.cardComponents.forEach(c => c.destroy(fromScene));
+    // Los hijos del Container se destruyen con super.destroy().
+    // Evitamos destruirlos manualmente para no provocar doble-destroy.
     this.cardComponents = [];
     super.destroy(fromScene);
   }

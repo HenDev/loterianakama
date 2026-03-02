@@ -1,8 +1,18 @@
 import Phaser from 'phaser';
-import type { WinCondition, GameState } from '../types';
+import type { GameState, LinePattern, SquarePattern, WinCondition } from '../types';
 import { getNakamaNetworkService, resetNakamaNetworkService } from '../services/NakamaNetworkService';
 import { getAudioService } from '../services/AudioService';
-import { generateUUID } from '../utils/shuffle';
+import {
+  cloneWinCondition,
+  DEFAULT_LINE_PATTERNS,
+  DEFAULT_SQUARE_PATTERNS,
+  DEFAULT_TARGET_WIN,
+  getCompactWinConditionLabel,
+  getLinePatternLabel,
+  getSquarePatternLabel,
+  getWinConditionSummary,
+  normalizeWinCondition,
+} from '../utils/winCondition';
 
 type MatchView = 'menu' | 'create' | 'join' | 'waiting';
 const MIN_MULTIPLAYER_PLAYERS = 2;
@@ -10,7 +20,9 @@ const MIN_MULTIPLAYER_PLAYERS = 2;
 export class NakamaMatchScene extends Phaser.Scene {
   private playerId = '';
   private playerName = '';
-  private targetWin: WinCondition = 'linea';
+  private targetWin: WinCondition = cloneWinCondition(DEFAULT_TARGET_WIN);
+  private rememberedLineTypes: LinePattern[] = [];
+  private rememberedSquareTypes: SquarePattern[] = [];
   private currentView: MatchView = 'menu';
   private matchId = '';
   private joinInput = '';
@@ -24,6 +36,8 @@ export class NakamaMatchScene extends Phaser.Scene {
   private errorText: Phaser.GameObjects.Text | null = null;
   private waitingPlayerList: Phaser.GameObjects.Text | null = null;
   private _startBtn: Phaser.GameObjects.Container | null = null;
+  private calledCardFeedbackToggle: Phaser.GameObjects.Container | null = null;
+  private calledCardFeedbackEnabled = false;
   private isHost = false;
   private containers: Phaser.GameObjects.Container[] = [];
   private clipboardData = '';
@@ -33,8 +47,11 @@ export class NakamaMatchScene extends Phaser.Scene {
   }
 
   init(): void {
-    this.playerId = generateUUID();
+    this.playerId = '';
     this.nameValue = `Jugador${Math.floor(Math.random() * 999) + 1}`;
+    this.targetWin = cloneWinCondition(DEFAULT_TARGET_WIN);
+    this.rememberedLineTypes = [];
+    this.rememberedSquareTypes = [];
     this.currentView = 'menu';
     this.matchId = '';
     this.joinInput = '';
@@ -43,9 +60,10 @@ export class NakamaMatchScene extends Phaser.Scene {
   create(): void {
     const { width, height } = this.scale;
     this.buildBackground(width, height);
-    this.buildHeader(width, height);
-    this.showMenu(width, height);
+    this.buildHeader(width);
+    this.showVictoryMenu(width, height);
     this.setupKeyboard();
+    void this.hydrateProfileIdentity();
   }
 
   private buildBackground(width: number, height: number): void {
@@ -56,10 +74,10 @@ export class NakamaMatchScene extends Phaser.Scene {
     for (let y = 0; y < height; y += 60) g.lineBetween(0, y, width, y);
   }
 
-  private buildHeader(width: number, _height: number): void {
+  private buildHeader(width: number): void {
     const hh = 56;
-    const hbg = this.add.rectangle(width / 2, hh / 2, width, hh, 0x071422, 0.95);
-    hbg.setStrokeStyle(1, 0xd4af37, 0.5);
+    this.add.rectangle(width / 2, hh / 2, width, hh, 0x071422, 0.95)
+      .setStrokeStyle(1, 0xd4af37, 0.5);
 
     this.add.text(width / 2, hh / 2, '¡LOTERÍA! — Multijugador', {
       fontSize: '22px',
@@ -68,11 +86,10 @@ export class NakamaMatchScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const backBtn = this.createButton(90, hh / 2, '← Volver', 0x1a2a3a, () => {
+    this.createButton(90, hh / 2, '← Volver', 0x1a2a3a, () => {
       resetNakamaNetworkService();
       this.scene.start('LobbyScene');
     });
-    void hbg, backBtn;
   }
 
   private clearContainers(): void {
@@ -84,6 +101,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.errorText = null;
     this.waitingPlayerList = null;
     this._startBtn = null;
+    this.calledCardFeedbackToggle = null;
     this.inputActive = null;
     if (this.loadingTimer) {
       this.loadingTimer.remove();
@@ -91,7 +109,587 @@ export class NakamaMatchScene extends Phaser.Scene {
     }
   }
 
-  private showMenu(width: number, height: number): void {
+  private showVictoryMenu(width: number, height: number): void {
+    this.clearContainers();
+    this.currentView = 'menu';
+
+    const container = this.add.container(0, 0);
+    this.containers.push(container);
+
+    const panelW = 560;
+    const panelH = 540;
+    const panelX = width / 2;
+    const panelY = height / 2 + 20;
+
+    const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0x0a1428, 0.95);
+    panel.setStrokeStyle(2, 0xd4af37, 0.7);
+
+    const label1 = this.add.text(panelX, panelY - 182, 'Nombre de Jugador', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const nameBox = this.add.rectangle(panelX, panelY - 152, 340, 40, 0x0d1e30);
+    nameBox.setStrokeStyle(2, 0x4a7a9b);
+    nameBox.setInteractive({ useHandCursor: true });
+    nameBox.on('pointerdown', () => { this.inputActive = 'name'; });
+
+    this.nameInputText = this.add.text(panelX, panelY - 152, this.nameValue, {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const label2 = this.add.text(panelX, panelY - 100, 'Regla de victoria', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    type SelectorButton = {
+      container: Phaser.GameObjects.Container;
+      bg: Phaser.GameObjects.Rectangle;
+      text: Phaser.GameObjects.Text;
+      activeColor: number;
+      inactiveColor: number;
+      handler: () => void;
+    };
+
+    const createSelectorButton = (
+      x: number,
+      y: number,
+      label: string,
+      widthValue: number,
+      activeColor: number,
+      onClick: () => void,
+    ): SelectorButton => {
+      const localContainer = this.add.container(x, y);
+      const bg = this.add.rectangle(0, 0, widthValue, 40, 0x0d1e30);
+      bg.setStrokeStyle(2, 0x4a7a9b, 0.7);
+      const text = this.add.text(0, 0, label, {
+        fontSize: '14px',
+        color: '#d7d7d7',
+        fontFamily: 'Georgia, serif',
+      }).setOrigin(0.5);
+
+      localContainer.add([bg, text]);
+      localContainer.setSize(widthValue, 40);
+      localContainer.setInteractive(
+        new Phaser.Geom.Rectangle(-widthValue / 2, -20, widthValue, 40),
+        Phaser.Geom.Rectangle.Contains,
+      );
+
+      const handler = () => {
+        getAudioService().play('button');
+        onClick();
+      };
+
+      localContainer.on('pointerdown', handler);
+      localContainer.on('pointerover', () => {
+        this.tweens.add({ targets: localContainer, scaleX: 1.03, scaleY: 1.03, duration: 80 });
+      });
+      localContainer.on('pointerout', () => {
+        this.tweens.add({ targets: localContainer, scaleX: 1, scaleY: 1, duration: 80 });
+      });
+
+      return {
+        container: localContainer,
+        bg,
+        text,
+        activeColor,
+        inactiveColor: 0x0d1e30,
+        handler,
+      };
+    };
+
+    const setButtonActive = (button: SelectorButton, active: boolean): void => {
+      button.bg.setFillStyle(active ? button.activeColor : button.inactiveColor);
+      button.bg.setStrokeStyle(2, active ? 0xd4af37 : 0x4a7a9b, active ? 1 : 0.7);
+      button.text.setColor(active ? '#f6e7b7' : '#d7d7d7');
+    };
+
+    const setButtonVisible = (button: SelectorButton, visible: boolean): void => {
+      button.container.setVisible(visible);
+      if (button.container.input) {
+        button.container.input.enabled = visible;
+      }
+    };
+
+    const bindButton = (button: SelectorButton, onClick: () => void): void => {
+      button.container.removeAllListeners('pointerdown');
+      const nextHandler = () => {
+        getAudioService().play('button');
+        onClick();
+      };
+      button.handler = nextHandler;
+      button.container.on('pointerdown', nextHandler);
+    };
+
+    const modeButtons = {
+      linea: createSelectorButton(panelX - 140, panelY - 58, 'Lineas', 120, 0x2c5364, () => {
+        this.targetWin = { type: 'linea', lineTypes: [...this.rememberedLineTypes] };
+        refreshSelectionUi();
+      }),
+      cuadro: createSelectorButton(panelX, panelY - 58, 'Cuadros', 120, 0x4a2448, () => {
+        this.targetWin = { type: 'cuadro', squareTypes: [...this.rememberedSquareTypes] };
+        refreshSelectionUi();
+      }),
+      tabla: createSelectorButton(panelX + 140, panelY - 58, 'Tabla llena', 120, 0x1a3a2a, () => {
+        this.targetWin = { type: 'tabla' };
+        refreshSelectionUi();
+      }),
+    };
+
+    const subtypeLabel = this.add.text(panelX, panelY - 6, 'Subtipos', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const subtypeButtons: SelectorButton[] = [
+      createSelectorButton(panelX - 140, panelY + 30, 'Horizontal', 120, 0x2b4554, () => {}),
+      createSelectorButton(panelX, panelY + 30, 'Vertical', 120, 0x2b4554, () => {}),
+      createSelectorButton(panelX + 140, panelY + 30, 'Diagonal', 120, 0x2b4554, () => {}),
+    ];
+
+    const ruleSummary = this.add.text(panelX, panelY + 84, '', {
+      fontSize: '14px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+      align: 'center',
+      wordWrap: { width: 440 },
+    }).setOrigin(0.5);
+
+    const ruleHint = this.add.text(panelX, panelY + 124, '', {
+      fontSize: '12px',
+      color: '#777777',
+      fontFamily: 'Georgia, serif',
+      align: 'center',
+      wordWrap: { width: 440 },
+    }).setOrigin(0.5);
+
+    const createBtn = this.createButton(panelX - 100, panelY + 176, 'Crear Partida', 0x1a3a2a, () => {
+      getAudioService().play('button');
+      this.handleCreateMatch(width, height);
+    });
+
+    const joinBtn = this.createButton(panelX + 100, panelY + 176, 'Unirse', 0x1a2a4a, () => {
+      getAudioService().play('button');
+      this.showJoin(width, height);
+    });
+
+    const calledCardFeedbackToggle = this.createCalledCardFeedbackToggle(panelX, panelY + 244, 390);
+
+    this.statusText = this.add.text(panelX, panelY + 312, '', {
+      fontSize: '13px',
+      color: '#aaaaaa',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+    }).setOrigin(0.5);
+
+    this.errorText = this.add.text(panelX, panelY + 340, '', {
+      fontSize: '13px',
+      color: '#ff6666',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const toggleLinePattern = (pattern: LinePattern): void => {
+      const current = normalizeWinCondition(this.targetWin);
+      if (current.type !== 'linea') return;
+
+      const next = current.lineTypes.includes(pattern)
+        ? current.lineTypes.filter(item => item !== pattern)
+        : [...current.lineTypes, pattern];
+
+      if (next.length === 0) return;
+      this.rememberedLineTypes = [...next];
+      this.targetWin = { type: 'linea', lineTypes: [...this.rememberedLineTypes] };
+      refreshSelectionUi();
+    };
+
+    const toggleSquarePattern = (pattern: SquarePattern): void => {
+      const current = normalizeWinCondition(this.targetWin);
+      if (current.type !== 'cuadro') return;
+
+      const next = current.squareTypes.includes(pattern)
+        ? current.squareTypes.filter(item => item !== pattern)
+        : [...current.squareTypes, pattern];
+
+      if (next.length === 0) return;
+      this.rememberedSquareTypes = [...next];
+      this.targetWin = { type: 'cuadro', squareTypes: [...this.rememberedSquareTypes] };
+      refreshSelectionUi();
+    };
+
+    const refreshSelectionUi = (): void => {
+      const current = normalizeWinCondition(this.targetWin);
+      setButtonActive(modeButtons.linea, current.type === 'linea');
+      setButtonActive(modeButtons.cuadro, current.type === 'cuadro');
+      setButtonActive(modeButtons.tabla, current.type === 'tabla');
+
+      ruleSummary.setText(`Regla actual: ${getCompactWinConditionLabel(current)}`);
+      ruleHint.setText(getWinConditionSummary(current));
+
+      if (current.type === 'linea') {
+        const patterns: LinePattern[] = ['horizontal', 'vertical', 'diagonal'];
+        subtypeLabel.setText('Subtipos');
+        subtypeButtons.forEach((button, index) => {
+          const pattern = patterns[index];
+          button.text.setText(getLinePatternLabel(pattern));
+          setButtonVisible(button, true);
+          setButtonActive(button, current.lineTypes.includes(pattern));
+          bindButton(button, () => toggleLinePattern(pattern));
+        });
+        return;
+      }
+
+      if (current.type === 'cuadro') {
+        const patterns: SquarePattern[] = ['esquinas', 'centro'];
+        subtypeLabel.setText('Subtipos');
+        subtypeButtons.forEach((button, index) => {
+          const pattern = patterns[index];
+          if (!pattern) {
+            setButtonVisible(button, false);
+            return;
+          }
+
+          button.text.setText(getSquarePatternLabel(pattern));
+          setButtonVisible(button, true);
+          setButtonActive(button, current.squareTypes.includes(pattern));
+          bindButton(button, () => toggleSquarePattern(pattern));
+        });
+        return;
+      }
+
+      subtypeLabel.setText('Patron fijo');
+      subtypeButtons[0].text.setText('Todas las cartas');
+      setButtonVisible(subtypeButtons[0], true);
+      setButtonActive(subtypeButtons[0], true);
+      bindButton(subtypeButtons[0], () => {});
+      setButtonVisible(subtypeButtons[1], false);
+      setButtonVisible(subtypeButtons[2], false);
+      ruleHint.setText('La tabla llena requiere marcar las 16 cartas.');
+    };
+
+    refreshSelectionUi();
+
+    container.add(panel);
+    container.add([
+      label1,
+      nameBox,
+      this.nameInputText,
+      label2,
+      modeButtons.linea.container,
+      modeButtons.cuadro.container,
+      modeButtons.tabla.container,
+      subtypeLabel,
+      subtypeButtons[0].container,
+      subtypeButtons[1].container,
+      subtypeButtons[2].container,
+      ruleSummary,
+      ruleHint,
+      createBtn,
+      joinBtn,
+      calledCardFeedbackToggle,
+      this.statusText,
+      this.errorText,
+    ]);
+
+    void nameBox;
+  }
+
+  public showConfiguredMenu(width: number, height: number): void {
+    this.clearContainers();
+    this.currentView = 'menu';
+
+    const container = this.add.container(0, 0);
+    this.containers.push(container);
+
+    const panelW = 560;
+    const panelH = 540;
+    const panelX = width / 2;
+    const panelY = height / 2 + 20;
+
+    const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0x0a1428, 0.95);
+    panel.setStrokeStyle(2, 0xd4af37, 0.7);
+
+    const label1 = this.add.text(panelX, panelY - 182, 'Nombre de Jugador', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const nameBox = this.add.rectangle(panelX, panelY - 152, 340, 40, 0x0d1e30);
+    nameBox.setStrokeStyle(2, 0x4a7a9b);
+    nameBox.setInteractive({ useHandCursor: true });
+    nameBox.on('pointerdown', () => { this.inputActive = 'name'; });
+
+    this.nameInputText = this.add.text(panelX, panelY - 152, this.nameValue, {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const label2 = this.add.text(panelX, panelY - 100, 'Regla de victoria', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    type SelectorButton = {
+      container: Phaser.GameObjects.Container;
+      bg: Phaser.GameObjects.Rectangle;
+      text: Phaser.GameObjects.Text;
+      activeColor: number;
+      inactiveColor: number;
+      handler: () => void;
+    };
+
+    const createSelectorButton = (
+      x: number,
+      y: number,
+      label: string,
+      widthValue: number,
+      activeColor: number,
+      onClick: () => void,
+    ): SelectorButton => {
+      const localContainer = this.add.container(x, y);
+      const bg = this.add.rectangle(0, 0, widthValue, 40, 0x0d1e30);
+      bg.setStrokeStyle(2, 0x4a7a9b, 0.7);
+      const text = this.add.text(0, 0, label, {
+        fontSize: '14px',
+        color: '#d7d7d7',
+        fontFamily: 'Georgia, serif',
+      }).setOrigin(0.5);
+
+      localContainer.add([bg, text]);
+      localContainer.setSize(widthValue, 40);
+      localContainer.setInteractive(
+        new Phaser.Geom.Rectangle(-widthValue / 2, -20, widthValue, 40),
+        Phaser.Geom.Rectangle.Contains,
+      );
+
+      const handler = () => {
+        getAudioService().play('button');
+        onClick();
+      };
+
+      localContainer.on('pointerdown', handler);
+      localContainer.on('pointerover', () => {
+        this.tweens.add({ targets: localContainer, scaleX: 1.03, scaleY: 1.03, duration: 80 });
+      });
+      localContainer.on('pointerout', () => {
+        this.tweens.add({ targets: localContainer, scaleX: 1, scaleY: 1, duration: 80 });
+      });
+
+      return {
+        container: localContainer,
+        bg,
+        text,
+        activeColor,
+        inactiveColor: 0x0d1e30,
+        handler,
+      };
+    };
+
+    const setButtonActive = (button: SelectorButton, active: boolean): void => {
+      button.bg.setFillStyle(active ? button.activeColor : button.inactiveColor);
+      button.bg.setStrokeStyle(2, active ? 0xd4af37 : 0x4a7a9b, active ? 1 : 0.7);
+      button.text.setColor(active ? '#f6e7b7' : '#d7d7d7');
+    };
+
+    const setButtonVisible = (button: SelectorButton, visible: boolean): void => {
+      button.container.setVisible(visible);
+      if (button.container.input) {
+        button.container.input.enabled = visible;
+      }
+    };
+
+    const bindButton = (button: SelectorButton, onClick: () => void): void => {
+      button.container.removeAllListeners('pointerdown');
+      const nextHandler = () => {
+        getAudioService().play('button');
+        onClick();
+      };
+      button.handler = nextHandler;
+      button.container.on('pointerdown', nextHandler);
+    };
+
+    const modeButtons = {
+      linea: createSelectorButton(panelX - 140, panelY - 58, 'Lineas', 120, 0x2c5364, () => {
+        this.targetWin = { type: 'linea', lineTypes: ['horizontal', 'vertical', 'diagonal'] };
+        refreshSelectionUi();
+      }),
+      cuadro: createSelectorButton(panelX, panelY - 58, 'Cuadros', 120, 0x4a2448, () => {
+        this.targetWin = { type: 'cuadro', squareTypes: ['esquinas', 'centro'] };
+        refreshSelectionUi();
+      }),
+      tabla: createSelectorButton(panelX + 140, panelY - 58, 'Tabla llena', 120, 0x1a3a2a, () => {
+        this.targetWin = { type: 'tabla' };
+        refreshSelectionUi();
+      }),
+    };
+
+    const subtypeLabel = this.add.text(panelX, panelY - 6, 'Subtipos', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const subtypeButtons: SelectorButton[] = [
+      createSelectorButton(panelX - 140, panelY + 30, 'Horizontal', 120, 0x2b4554, () => {}),
+      createSelectorButton(panelX, panelY + 30, 'Vertical', 120, 0x2b4554, () => {}),
+      createSelectorButton(panelX + 140, panelY + 30, 'Diagonal', 120, 0x2b4554, () => {}),
+    ];
+
+    const ruleSummary = this.add.text(panelX, panelY + 84, '', {
+      fontSize: '14px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+      align: 'center',
+      wordWrap: { width: 440 },
+    }).setOrigin(0.5);
+
+    const ruleHint = this.add.text(panelX, panelY + 124, '', {
+      fontSize: '12px',
+      color: '#777777',
+      fontFamily: 'Georgia, serif',
+      align: 'center',
+      wordWrap: { width: 440 },
+    }).setOrigin(0.5);
+
+    const createBtn = this.createButton(panelX - 100, panelY + 176, 'Crear Partida', 0x1a3a2a, () => {
+      getAudioService().play('button');
+      this.handleCreateMatch(width, height);
+    });
+
+    const joinBtn = this.createButton(panelX + 100, panelY + 176, 'Unirse', 0x1a2a4a, () => {
+      getAudioService().play('button');
+      this.showJoin(width, height);
+    });
+
+    const calledCardFeedbackToggle = this.createCalledCardFeedbackToggle(panelX, panelY + 244, 390);
+
+    this.statusText = this.add.text(panelX, panelY + 312, '', {
+      fontSize: '13px',
+      color: '#aaaaaa',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+    }).setOrigin(0.5);
+
+    this.errorText = this.add.text(panelX, panelY + 340, '', {
+      fontSize: '13px',
+      color: '#ff6666',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const toggleLinePattern = (pattern: LinePattern): void => {
+      const current = normalizeWinCondition(this.targetWin);
+      if (current.type !== 'linea') return;
+
+      const next = current.lineTypes.includes(pattern)
+        ? current.lineTypes.filter(item => item !== pattern)
+        : [...current.lineTypes, pattern];
+
+      if (next.length === 0) return;
+      this.targetWin = { type: 'linea', lineTypes: next };
+      refreshSelectionUi();
+    };
+
+    const toggleSquarePattern = (pattern: SquarePattern): void => {
+      const current = normalizeWinCondition(this.targetWin);
+      if (current.type !== 'cuadro') return;
+
+      const next = current.squareTypes.includes(pattern)
+        ? current.squareTypes.filter(item => item !== pattern)
+        : [...current.squareTypes, pattern];
+
+      if (next.length === 0) return;
+      this.targetWin = { type: 'cuadro', squareTypes: next };
+      refreshSelectionUi();
+    };
+
+    const refreshSelectionUi = (): void => {
+      const current = normalizeWinCondition(this.targetWin);
+      setButtonActive(modeButtons.linea, current.type === 'linea');
+      setButtonActive(modeButtons.cuadro, current.type === 'cuadro');
+      setButtonActive(modeButtons.tabla, current.type === 'tabla');
+
+      ruleSummary.setText(`Regla actual: ${getCompactWinConditionLabel(current)}`);
+      ruleHint.setText(getWinConditionSummary(current));
+
+      if (current.type === 'linea') {
+        const patterns: LinePattern[] = ['horizontal', 'vertical', 'diagonal'];
+        subtypeLabel.setText('Subtipos');
+        subtypeButtons.forEach((button, index) => {
+          const pattern = patterns[index];
+          button.text.setText(getLinePatternLabel(pattern));
+          setButtonVisible(button, true);
+          setButtonActive(button, current.lineTypes.includes(pattern));
+          bindButton(button, () => toggleLinePattern(pattern));
+        });
+        return;
+      }
+
+      if (current.type === 'cuadro') {
+        const patterns: SquarePattern[] = ['esquinas', 'centro'];
+        subtypeLabel.setText('Subtipos');
+        subtypeButtons.forEach((button, index) => {
+          const pattern = patterns[index];
+          if (!pattern) {
+            setButtonVisible(button, false);
+            return;
+          }
+
+          button.text.setText(getSquarePatternLabel(pattern));
+          setButtonVisible(button, true);
+          setButtonActive(button, current.squareTypes.includes(pattern));
+          bindButton(button, () => toggleSquarePattern(pattern));
+        });
+        return;
+      }
+
+      subtypeLabel.setText('Patron fijo');
+      subtypeButtons[0].text.setText('Todas las cartas');
+      setButtonVisible(subtypeButtons[0], true);
+      setButtonActive(subtypeButtons[0], true);
+      bindButton(subtypeButtons[0], () => {});
+      setButtonVisible(subtypeButtons[1], false);
+      setButtonVisible(subtypeButtons[2], false);
+      ruleHint.setText('La tabla llena requiere marcar las 16 cartas.');
+    };
+
+    refreshSelectionUi();
+
+    container.add(panel);
+    container.add([
+      label1,
+      nameBox,
+      this.nameInputText,
+      label2,
+      modeButtons.linea.container,
+      modeButtons.cuadro.container,
+      modeButtons.tabla.container,
+      subtypeLabel,
+      subtypeButtons[0].container,
+      subtypeButtons[1].container,
+      subtypeButtons[2].container,
+      ruleSummary,
+      ruleHint,
+      createBtn,
+      joinBtn,
+      calledCardFeedbackToggle,
+      this.statusText,
+      this.errorText,
+    ]);
+
+    void nameBox;
+  }
+
+  public showMenu(width: number, height: number): void {
     this.clearContainers();
     this.currentView = 'menu';
 
@@ -99,7 +697,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.containers.push(container);
 
     const panelW = 480;
-    const panelH = 380;
+    const panelH = 430;
     const panelX = width / 2;
     const panelY = height / 2 + 20;
 
@@ -130,12 +728,12 @@ export class NakamaMatchScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const lineaBtn = this.createModeButton(panelX - 80, panelY - 25, 'Línea', () => {
-      this.targetWin = 'linea';
+      this.targetWin = { type: 'linea', lineTypes: ['horizontal', 'vertical', 'diagonal'] };
       lineaBtn.getAt<Phaser.GameObjects.Rectangle>(0).setStrokeStyle(3, 0xd4af37);
       tablaBtn.getAt<Phaser.GameObjects.Rectangle>(0).setStrokeStyle(1, 0x4a7a9b);
     });
     const tablaBtn = this.createModeButton(panelX + 80, panelY - 25, 'Tabla', () => {
-      this.targetWin = 'tabla';
+      this.targetWin = { type: 'tabla' };
       tablaBtn.getAt<Phaser.GameObjects.Rectangle>(0).setStrokeStyle(3, 0xd4af37);
       lineaBtn.getAt<Phaser.GameObjects.Rectangle>(0).setStrokeStyle(1, 0x4a7a9b);
     });
@@ -151,21 +749,35 @@ export class NakamaMatchScene extends Phaser.Scene {
       this.showJoin(width, height);
     });
 
-    this.statusText = this.add.text(panelX, panelY + 130, '', {
+    const calledCardFeedbackToggle = this.createCalledCardFeedbackToggle(panelX, panelY + 122, 360);
+
+    this.statusText = this.add.text(panelX, panelY + 188, '', {
       fontSize: '13px',
       color: '#aaaaaa',
       fontFamily: 'Georgia, serif',
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    this.errorText = this.add.text(panelX, panelY + 155, '', {
+    this.errorText = this.add.text(panelX, panelY + 214, '', {
       fontSize: '13px',
       color: '#ff6666',
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
     container.add(panel);
-    container.add([label1, nameBox, this.nameInputText, label2, lineaBtn, tablaBtn, createBtn, joinBtn, this.statusText, this.errorText]);
+    container.add([
+      label1,
+      nameBox,
+      this.nameInputText,
+      label2,
+      lineaBtn,
+      tablaBtn,
+      createBtn,
+      joinBtn,
+      calledCardFeedbackToggle,
+      this.statusText,
+      this.errorText,
+    ]);
     void nameBox;
   }
 
@@ -177,7 +789,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.containers.push(container);
 
     const panelW = 480;
-    const panelH = 400;
+    const panelH = 470;
     const panelX = width / 2;
     const panelY = height / 2 + 20;
 
@@ -223,30 +835,45 @@ export class NakamaMatchScene extends Phaser.Scene {
       this.handleJoinMatch(width, height);
     });
 
-    const pasteBtn = this.createButton(panelX - 90, panelY + 100, 'Pegar código', 0x1a3a4a, () => {
+    const calledCardFeedbackToggle = this.createCalledCardFeedbackToggle(panelX, panelY + 102, 390);
+
+    const pasteBtn = this.createButton(panelX - 90, panelY + 168, 'Pegar código', 0x1a3a4a, () => {
       getAudioService().play('button');
       void this.handlePasteCode();
     }, 150);
 
-    const backBtn2 = this.createButton(panelX + 90, panelY + 100, '← Regresar', 0x2a1a1a, () => {
-      this.showMenu(width, height);
+    const backBtn2 = this.createButton(panelX + 90, panelY + 168, '← Regresar', 0x2a1a1a, () => {
+      this.showVictoryMenu(width, height);
     }, 150);
 
-    this.statusText = this.add.text(panelX, panelY + 155, '', {
+    this.statusText = this.add.text(panelX, panelY + 228, '', {
       fontSize: '13px',
       color: '#aaaaaa',
       fontFamily: 'Georgia, serif',
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    this.errorText = this.add.text(panelX, panelY + 175, '', {
+    this.errorText = this.add.text(panelX, panelY + 252, '', {
       fontSize: '13px',
       color: '#ff6666',
       fontFamily: 'Georgia, serif',
     }).setOrigin(0.5);
 
     container.add(panel);
-    container.add([nameLabel, nameBox, this.nameInputText, codeLabel, inputBox, this.joinInputText, confirmBtn, pasteBtn, backBtn2, this.statusText, this.errorText]);
+    container.add([
+      nameLabel,
+      nameBox,
+      this.nameInputText,
+      codeLabel,
+      inputBox,
+      this.joinInputText,
+      confirmBtn,
+      calledCardFeedbackToggle,
+      pasteBtn,
+      backBtn2,
+      this.statusText,
+      this.errorText,
+    ]);
     void inputBox;
     void nameBox;
   }
@@ -342,7 +969,7 @@ export class NakamaMatchScene extends Phaser.Scene {
 
     const leaveBtn = this.createButton(panelX - (this.isHost ? 90 : 0), panelY + 175, 'Salir', 0x3a1a1a, () => {
       resetNakamaNetworkService();
-      this.showMenu(width, height);
+      this.showVictoryMenu(width, height);
     });
     container.add([playersLabel, this.waitingPlayerList, this.statusText, this.errorText, leaveBtn]);
 
@@ -373,6 +1000,102 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.updateStartButtonState();
   }
 
+  private createCalledCardFeedbackToggle(
+    x: number,
+    y: number,
+    width: number,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y);
+    const bg = this.add.rectangle(0, 0, width, 44, 0x3a1a1a);
+    const label = this.add.text(0, 0, '', {
+      fontSize: '14px',
+      color: '#f6e7b7',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const hint = this.add.text(0, 36, '', {
+      fontSize: '12px',
+      color: '#8fa2b6',
+      fontFamily: 'Georgia, serif',
+      align: 'center',
+    }).setOrigin(0.5);
+
+    bg.setStrokeStyle(2, 0xd4af37, 0.7);
+    container.add([bg, label, hint]);
+    container.setSize(width, 68);
+    container.setInteractive(
+      new Phaser.Geom.Rectangle(-width / 2, -22, width, 44),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    container.on('pointerdown', () => {
+      getAudioService().play('button');
+      void this.handleToggleCalledCardFeedback();
+    });
+    container.on('pointerover', () => {
+      this.tweens.add({ targets: container, scaleX: 1.02, scaleY: 1.02, duration: 80 });
+    });
+    container.on('pointerout', () => {
+      this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 80 });
+    });
+
+    this.calledCardFeedbackToggle = container;
+    this.updateCalledCardFeedbackToggle();
+    return container;
+  }
+
+  private updateCalledCardFeedbackToggle(): void {
+    if (!this.calledCardFeedbackToggle) return;
+
+    const enabled = this.calledCardFeedbackEnabled;
+    const bg = this.calledCardFeedbackToggle.getAt<Phaser.GameObjects.Rectangle>(0);
+    const label = this.calledCardFeedbackToggle.getAt<Phaser.GameObjects.Text>(1);
+    const hint = this.calledCardFeedbackToggle.getAt<Phaser.GameObjects.Text>(2);
+
+    bg.setFillStyle(enabled ? 0x1f4a2a : 0x3a1a1a);
+    bg.setStrokeStyle(2, enabled ? 0x7bd389 : 0xd4af37, 0.75);
+    label.setText(`Aviso de carta propia: ${enabled ? 'Activado' : 'Desactivado'}`);
+    hint.setText(
+      enabled
+        ? 'Muestra aviso y resalta la carta cuando la tengas.'
+        : 'No muestra aviso ni resalta automaticamente tus cartas.',
+    );
+  }
+
+  private async handleToggleCalledCardFeedback(): Promise<void> {
+    try {
+      this.errorText?.setText('');
+      this.statusText?.setText('Guardando preferencia...');
+      const profile = await getNakamaNetworkService()
+        .setCalledCardFeedbackEnabled(!this.calledCardFeedbackEnabled);
+      this.calledCardFeedbackEnabled = profile.preferences.calledCardFeedbackEnabled;
+      this.updateCalledCardFeedbackToggle();
+      this.statusText?.setText(
+        this.calledCardFeedbackEnabled
+          ? 'Aviso de carta propia activado.'
+          : 'Aviso de carta propia desactivado.',
+      );
+    } catch (error) {
+      this.errorText?.setText(`No se pudo guardar la preferencia: ${String(error)}`);
+    }
+  }
+
+  private async hydrateProfileIdentity(): Promise<void> {
+    try {
+      const profile = await getNakamaNetworkService().getAuthProfile();
+      if (profile.userId) {
+        this.playerId = profile.userId;
+      }
+      if (!this.nameValue || this.nameValue.startsWith('Jugador')) {
+        this.nameValue = profile.username || this.nameValue;
+        this.nameInputText?.setText(this.nameValue);
+      }
+      this.calledCardFeedbackEnabled = profile.preferences.calledCardFeedbackEnabled;
+      this.updateCalledCardFeedbackToggle();
+    } catch {
+      // Keep local defaults when auth preload fails.
+    }
+  }
+
   private async handleCreateMatch(width: number, height: number): Promise<void> {
     const name = this.nameValue.trim() || 'Jugador';
     this.playerName = name;
@@ -383,12 +1106,13 @@ export class NakamaMatchScene extends Phaser.Scene {
 
     try {
       const ns = getNakamaNetworkService();
-      await ns.connect(this.playerId);
+      await ns.connect(name);
       this.playerId = ns.getLocalPlayerId();
 
       ns.on('GAME_STATE_SYNC', (event) => {
         const payload = event.payload as { state: GameState };
         const state = payload.state;
+        this.targetWin = normalizeWinCondition(state.targetWin);
         if (this.currentView === 'waiting') this.updateWaitingList();
         if (state.status === 'playing') {
           this.launchGame();
@@ -430,12 +1154,13 @@ export class NakamaMatchScene extends Phaser.Scene {
 
     try {
       const ns = getNakamaNetworkService();
-      await ns.connect(this.playerId);
+      await ns.connect(name);
       this.playerId = ns.getLocalPlayerId();
 
       ns.on('GAME_STATE_SYNC', (event) => {
         const payload = event.payload as { state: GameState };
         const state = payload.state;
+        this.targetWin = normalizeWinCondition(state.targetWin);
         if (this.currentView === 'waiting') this.updateWaitingList();
         if (state.status === 'playing') {
           this.launchGame();
@@ -484,9 +1209,12 @@ export class NakamaMatchScene extends Phaser.Scene {
 
   private launchGame(): void {
     if (this.loadingTimer) { this.loadingTimer.remove(); this.loadingTimer = null; }
+    const targetWin = normalizeWinCondition(
+      getNakamaNetworkService().gameState?.targetWin ?? this.targetWin,
+    );
     this.scene.start('GameScene', {
       playerId: this.playerId,
-      targetWin: this.targetWin,
+      targetWin,
       useNakama: true,
       playerName: this.playerName,
     });

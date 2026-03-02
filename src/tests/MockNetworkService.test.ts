@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MockNetworkService, resetMockNetworkService } from '../services/MockNetworkService';
 import { DEFAULT_CONFIG } from '../services/GameService';
 import type { NetworkEvent, GameState } from '../types';
+import { withSquareTypes } from '../utils/winCondition';
 
 vi.useFakeTimers();
 
@@ -95,6 +96,18 @@ describe('MockNetworkService', () => {
       state.players.forEach(player => {
         expect(player.board).toHaveLength(16);
       });
+    });
+
+    it('debe respetar targetWin tabla al iniciar', () => {
+      service.send({
+        type: 'GAME_START',
+        payload: { targetWin: withSquareTypes(['esquinas']) },
+        senderId: PLAYER_ID,
+        timestamp: Date.now(),
+      });
+
+      const state = service.getState()!;
+      expect(state.targetWin).toEqual(withSquareTypes(['esquinas']));
     });
   });
 

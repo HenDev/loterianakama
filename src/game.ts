@@ -4,6 +4,8 @@ import { LobbyScene } from './scenes/LobbyScene';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
 import { NakamaMatchScene } from './scenes/NakamaMatchScene';
+import { ProfileScene } from './scenes/ProfileScene';
+import { CantorScene } from './scenes/CantorScene';
 
 export function createGame(parent: string | HTMLElement): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
@@ -16,7 +18,7 @@ export function createGame(parent: string | HTMLElement): Phaser.Game {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, LobbyScene, GameScene, ResultScene, NakamaMatchScene],
+    scene: [BootScene, LobbyScene, GameScene, ResultScene, NakamaMatchScene, ProfileScene, CantorScene],
     render: {
       antialias: true,
       roundPixels: false,

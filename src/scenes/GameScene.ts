@@ -7,13 +7,21 @@ import { getVoiceService } from '../services/VoiceService';
 import { BoardComponent } from '../components/BoardComponent';
 import { DeckCardComponent } from '../components/DeckCardComponent';
 import { PlayerListComponent } from '../components/PlayerListComponent';
-import { CARD_ASPECT_RATIO } from '../data/cards';
+import { CARD_ASPECT_RATIO, CARD_ATLAS_KEY, getCardFrameById } from '../data/cards';
 import { CORCHOLATA_ATLAS_KEY, CORCHOLATA_FRAME_PREFIX } from '../data/corcholatas';
+import { getOrCreateDeviceId } from '../utils/deviceId';
+import { readCachedUserPreferences } from '../utils/userPreferences';
+import {
+  cloneWinCondition,
+  DEFAULT_TARGET_WIN,
+  getCompactWinConditionLabel,
+  normalizeWinCondition,
+} from '../utils/winCondition';
 
 export class GameScene extends Phaser.Scene {
   private playerId = '';
   private playerName = '';
-  private targetWin: WinCondition = 'linea';
+  private targetWin: WinCondition = cloneWinCondition(DEFAULT_TARGET_WIN);
   private useNakama = false;
   private networkService: INetworkService = getMockNetworkService();
   private gameState: GameState | null = null;
@@ -23,9 +31,11 @@ export class GameScene extends Phaser.Scene {
   private playerListComp: PlayerListComponent | null = null;
 
   private statusText: Phaser.GameObjects.Text | null = null;
-  private drawnCardsGrid: Phaser.GameObjects.Container | null = null;
+  private modeText: Phaser.GameObjects.Text | null = null;
+  private drawnCardsPile: Phaser.GameObjects.Container | null = null;
   private cardsDrawnCount: Phaser.GameObjects.Text | null = null;
   private currentCardLabel: Phaser.GameObjects.Text | null = null;
+  private drawnPileIds: number[] = [];
 
   private boundOnSync!: (e: NetworkEvent) => void;
   private boundOnCardDrawn!: (e: NetworkEvent) => void;
@@ -34,6 +44,7 @@ export class GameScene extends Phaser.Scene {
   private hasShownResults = false;
   private selectedCorcholataFrame?: string;
   private corcholataRotationSeed = 0;
+  private calledCardFeedbackEnabled = false;
   private static readonly TEMP_MARK_TEXTURE_KEY = 'frijol';
 
   constructor() {
@@ -43,13 +54,17 @@ export class GameScene extends Phaser.Scene {
   init(data: { playerId: string; targetWin: WinCondition; useNakama?: boolean; playerName?: string }): void {
     this.playerId = data.playerId;
     this.playerName = data.playerName ?? '';
-    this.targetWin = data.targetWin ?? 'linea';
+    this.targetWin = normalizeWinCondition(data.targetWin ?? DEFAULT_TARGET_WIN);
     this.useNakama = data.useNakama ?? false;
     this.networkService = this.useNakama ? getNakamaNetworkService() : getMockNetworkService();
     this.hasShownResults = false;
     if (this.useNakama) {
       const nakamaPlayerId = getNakamaNetworkService().getLocalPlayerId();
       if (nakamaPlayerId) this.playerId = nakamaPlayerId;
+      this.calledCardFeedbackEnabled = getNakamaNetworkService().getUserPreferences().calledCardFeedbackEnabled;
+    } else {
+      this.calledCardFeedbackEnabled =
+        readCachedUserPreferences(getOrCreateDeviceId()).calledCardFeedbackEnabled;
     }
   }
 
@@ -91,13 +106,65 @@ export class GameScene extends Phaser.Scene {
     const rightW = 220;
     const centerW = width - leftW - rightW;
 
-    this.buildHeader(width, headerH);
+    this.buildConfiguredHeader(width, headerH);
     this.buildLeftPanel(0, headerH, leftW, height - headerH);
     this.buildCenterPanel(leftW, headerH, centerW, height - headerH);
     this.buildRightPanel(width - rightW, headerH, rightW, height - headerH);
   }
 
-  private buildHeader(width: number, h: number): void {
+  private buildConfiguredHeader(width: number, h: number): void {
+    const bg = this.add.rectangle(width / 2, h / 2, width, h, 0x0a1a10, 0.95);
+    bg.setStrokeStyle(1, 0xd4af37, 0.5);
+
+    this.add.text(20, h / 2, 'LOTERIA MEXICANA!', {
+      fontSize: '20px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+
+    this.statusText = this.add.text(width / 2, h / 2, 'Iniciando juego...', {
+      fontSize: '14px',
+      color: '#aaaaaa',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+    }).setOrigin(0.5);
+
+    this.modeText = this.add.text(width - 20, h / 2, `Modo: ${getCompactWinConditionLabel(this.targetWin)}`, {
+      fontSize: '12px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(1, 0.5);
+
+    const fullscreenBtn = this.add.text(width - 160, h / 2, '[ ]', {
+      fontSize: '18px',
+      color: '#d4af37',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    const updateFullscreenIcon = () => {
+      fullscreenBtn.setText(this.scale.isFullscreen ? 'X' : '[ ]');
+    };
+
+    fullscreenBtn.on('pointerdown', () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    fullscreenBtn.on('pointerover', () => {
+      fullscreenBtn.setScale(1.2);
+    });
+
+    fullscreenBtn.on('pointerout', () => {
+      fullscreenBtn.setScale(1);
+    });
+
+    this.scale.on('fullscreenchange', updateFullscreenIcon);
+  }
+
+  public buildHeader(width: number, h: number): void {
     const bg = this.add.rectangle(width / 2, h / 2, width, h, 0x0a1a10, 0.95);
     bg.setStrokeStyle(1, 0xd4af37, 0.5);
 
@@ -115,12 +182,14 @@ export class GameScene extends Phaser.Scene {
       fontStyle: 'italic',
     }).setOrigin(0.5);
 
-    const modeLabel = this.add.text(width - 20, h / 2,
+    this.modeText = this.add.text(width - 20, h / 2,
+      // @ts-expect-error legacy header kept for compatibility with older scene wiring
       `Modo: ${this.targetWin === 'linea' ? 'Línea' : 'Tabla'}`, {
       fontSize: '12px',
       color: '#888888',
       fontFamily: 'Georgia, serif',
     }).setOrigin(1, 0.5);
+    this.modeText.setText(`Modo: ${getCompactWinConditionLabel(this.targetWin)}`);
 
     const fullscreenBtn = this.add.text(width - 160, h / 2, '⛶', {
       fontSize: '18px',
@@ -149,7 +218,6 @@ export class GameScene extends Phaser.Scene {
 
     this.scale.on('fullscreenchange', updateFullscreenIcon);
 
-    void modeLabel, bg;
   }
 
   private buildLeftPanel(x: number, y: number, w: number, h: number): void {
@@ -224,10 +292,18 @@ export class GameScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.container(x, y + 32);
-    this.drawnCardsGrid = this.add.container(x + 12, y + 36);
+    const table = this.add.rectangle(x + w / 2, y + h * 0.56, w - 26, h * 0.72, 0x17321f, 0.9);
+    table.setStrokeStyle(1, 0x3d6b47, 0.8);
 
-    void bg;
+    this.add.text(x + w / 2, y + h * 0.93, 'Las cartas caen en la mesa', {
+      fontSize: '11px',
+      color: '#8ca692',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+    }).setOrigin(0.5);
+
+    this.drawnCardsPile = this.add.container(x + w / 2, y + h * 0.56);
+
   }
 
   private createLoteriaButton(x: number, y: number): Phaser.GameObjects.Container {
@@ -280,8 +356,10 @@ export class GameScene extends Phaser.Scene {
       this.onCardDrawn(card);
     };
     this.boundOnWinValidated = (e: NetworkEvent) => {
-      const { playerId, winner } = e.payload as { playerId: string; winner: Player };
-      this.onWinValidated(playerId, winner);
+      const payload = (e.payload ?? {}) as { playerId?: string; winner?: Player | null };
+      const winnerId = payload.playerId ?? this.gameState?.winner?.id;
+      if (!winnerId) return;
+      this.onWinValidated(winnerId, payload.winner ?? null);
     };
     this.boundOnWinInvalid = () => {
       this.showFeedback('¡Falsa alarma! La jugada no es válida.', 0xff4444);
@@ -295,7 +373,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onGameStateSync(state: GameState): void {
-    this.gameState = state;
+    this.targetWin = normalizeWinCondition(state.targetWin);
+    this.gameState = {
+      ...state,
+      targetWin: cloneWinCondition(this.targetWin),
+    };
+    this.modeText?.setText(`Modo: ${getCompactWinConditionLabel(this.targetWin)}`);
 
     this.statusText?.setText(
       state.status === 'playing' ? 'Jugando...' :
@@ -371,30 +454,35 @@ export class GameScene extends Phaser.Scene {
     const localPlayer = this.gameState?.players.find(p => p.id === this.playerId);
     if (localPlayer) {
       const hasCard = localPlayer.board.some(c => c.cardId === card.id);
-      if (hasCard) {
+      if (hasCard && this.calledCardFeedbackEnabled) {
         this.boardComp?.highlightCard(card.id);
         this.showFeedback(`¡Tienes "${card.name}"!`, 0xd4af37);
       }
     }
   }
 
-  private onWinValidated(winnerId: string, winner: Player): void {
+  private onWinValidated(winnerId: string, winner: Player | null): void {
     this.goToResults(winnerId, winner);
   }
 
-  private goToResults(winnerId: string, winner: Player): void {
+  private goToResults(winnerId: string, winner: Player | null): void {
     if (this.hasShownResults) return;
+    const resolvedWinner =
+      winner ??
+      this.gameState?.winner ??
+      this.gameState?.players.find(p => p.id === winnerId) ??
+      null;
+
+    if (!resolvedWinner) return;
+
     this.hasShownResults = true;
     getAudioService().play('win');
     const isLocalWinner = winnerId === this.playerId;
-    this.time.delayedCall(500, () => {
-      this.scene.start('ResultScene', {
-        winner,
-        isLocalWinner,
-        playerId: this.playerId,
-        gameState: this.gameState,
-        useNakama: this.useNakama,
-      });
+    this.scene.start('ResultScene', {
+      winner: resolvedWinner,
+      isLocalWinner,
+      gameState: this.gameState,
+      useNakama: this.useNakama,
     });
   }
 
@@ -426,34 +514,79 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateDrawnCardsGrid(drawnCardIds: number[]): void {
-    if (!this.drawnCardsGrid) return;
-    const { width } = this.scale;
-    const rightW = 220;
-    const x = width - rightW;
-    const COLS = 5;
-    const SIZE = 30;
-    const GAP = 4;
+    if (!this.drawnCardsPile) return;
 
-    this.drawnCardsGrid.removeAll(true);
+    if (drawnCardIds.length < this.drawnPileIds.length) {
+      this.drawnCardsPile.removeAll(true);
+      this.drawnPileIds = [];
+    }
 
-    const recent = drawnCardIds.slice(-40);
-    recent.forEach((cardId, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-      const cx = col * (SIZE + GAP) + SIZE / 2;
-      const cy = row * (SIZE + GAP) + SIZE / 2;
+    const newCardIds = drawnCardIds.filter(cardId => !this.drawnPileIds.includes(cardId));
+    const isBackfill = this.drawnPileIds.length === 0 && newCardIds.length > 1;
 
-      const miniCard = this.add.rectangle(cx, cy, SIZE, SIZE, 0x1a3a2a);
-      miniCard.setStrokeStyle(1, 0x3a5a3a, 1);
-      const numText = this.add.text(cx, cy, String(cardId), {
-        fontSize: '9px',
-        color: '#aaaaaa',
-        fontFamily: 'monospace',
-      }).setOrigin(0.5);
-
-      this.drawnCardsGrid?.add([miniCard, numText]);
+    newCardIds.forEach((cardId, index) => {
+      const shouldAnimate = !isBackfill || index >= newCardIds.length - 2;
+      this.addCardToDrawnPile(cardId, shouldAnimate);
+      this.drawnPileIds.push(cardId);
     });
-    void x;
+  }
+
+  private addCardToDrawnPile(cardId: number, animate: boolean): void {
+    if (!this.drawnCardsPile) return;
+
+    const pileIndex = this.drawnPileIds.length;
+    const cardHeight = 130;
+    const cardWidth = cardHeight * CARD_ASPECT_RATIO;
+    const targetX = Phaser.Math.Between(-22, 22) + ((pileIndex % 3) - 1) * 3;
+    const targetY = Phaser.Math.Between(-24, 24) + Math.min(pileIndex * 0.55, 18);
+    const targetRotation = Phaser.Math.FloatBetween(-0.24, 0.24);
+
+    const startX = 90;
+    const startY = -230;
+    const startRotation = Phaser.Math.FloatBetween(-0.8, 0.8);
+
+    const card = this.add.image(
+      animate ? startX : targetX,
+      animate ? startY : targetY,
+      CARD_ATLAS_KEY,
+      getCardFrameById(cardId),
+    );
+    card.setDisplaySize(cardWidth, cardHeight);
+    card.setRotation(animate ? startRotation : targetRotation);
+    card.setDepth(pileIndex);
+    this.drawnCardsPile.add(card);
+
+    if (animate) {
+      this.tweens.add({
+        targets: card,
+        x: targetX,
+        y: targetY,
+        rotation: targetRotation,
+        duration: 420,
+        ease: 'Cubic.easeOut',
+      });
+      this.tweens.add({
+        targets: card,
+        y: targetY + 6,
+        duration: 110,
+        yoyo: true,
+        ease: 'Sine.easeOut',
+        delay: 420,
+      });
+    }
+
+    const maxVisibleInPile = 22;
+    if (this.drawnCardsPile.length > maxVisibleInPile) {
+      const oldest = this.drawnCardsPile.first as Phaser.GameObjects.Image | undefined;
+      if (oldest) {
+        this.tweens.add({
+          targets: oldest,
+          alpha: 0,
+          duration: 120,
+          onComplete: () => oldest.destroy(),
+        });
+      }
+    }
   }
 
   private showFeedback(message: string, color: number): void {
@@ -521,5 +654,8 @@ export class GameScene extends Phaser.Scene {
     this.networkService.off('CARD_DRAWN', this.boundOnCardDrawn);
     this.networkService.off('WIN_VALIDATED', this.boundOnWinValidated);
     this.networkService.off('WIN_INVALID', this.boundOnWinInvalid);
+    this.drawnPileIds = [];
   }
 }
+
+

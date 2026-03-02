@@ -25,6 +25,7 @@ export class AudioService {
         case 'button':    this.playTone(ctx, 520, 0.06, 'sine', 0.1); break;
       }
     } catch {
+      // Ignore audio API failures so UI interactions continue silently.
     }
   }
 

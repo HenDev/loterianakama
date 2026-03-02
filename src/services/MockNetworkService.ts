@@ -3,6 +3,7 @@ import { BaseNetworkService, createNetworkEvent } from './NetworkService';
 import { GameService, DEFAULT_CONFIG } from './GameService';
 import { MOCK_PLAYER_NAMES } from '../data/players';
 import { generateUUID } from '../utils/shuffle';
+import { cloneWinCondition, normalizeWinCondition } from '../utils/winCondition';
 
 const DRAW_INTERVAL_MS = 3000;
 const AI_MARK_DELAY_MS = 500;
@@ -31,7 +32,7 @@ export class MockNetworkService extends BaseNetworkService {
       this.mockPlayerIds.push(mockId);
       this.gameState = this.gameService.addPlayer(this.gameState, mockPlayer);
     }
-
+    this.emit(createNetworkEvent('GAME_STATE_SYNC', { state: this.gameState }, 'server'));
   }
 
   disconnect(): void {
@@ -46,7 +47,7 @@ export class MockNetworkService extends BaseNetworkService {
 
     switch (event.type) {
       case 'GAME_START':
-        this.handleStart();
+        this.handleStart((event.payload as { targetWin?: WinCondition } | undefined)?.targetWin);
         break;
       case 'MARK_CARD':
         this.handleMarkCard(event.payload as { playerId: string; cardId: number });
@@ -65,8 +66,11 @@ export class MockNetworkService extends BaseNetworkService {
     return this.gameState;
   }
 
-  private handleStart(): void {
+  private handleStart(targetWin?: WinCondition): void {
     if (!this.gameState) return;
+    if (targetWin) {
+      this.gameState = { ...this.gameState, targetWin: normalizeWinCondition(targetWin) };
+    }
     this.gameState = this.gameService.startGame(this.gameState);
     this.emit(createNetworkEvent('GAME_STATE_SYNC', { state: this.gameState }, 'server'));
     this.startDrawing();
@@ -83,7 +87,7 @@ export class MockNetworkService extends BaseNetworkService {
     const { state, result } = this.gameService.processClaim(
       this.gameState,
       payload.playerId,
-      payload.condition
+      this.gameState.targetWin
     );
     this.gameState = state;
 
@@ -92,7 +96,7 @@ export class MockNetworkService extends BaseNetworkService {
       this.emit(createNetworkEvent('WIN_VALIDATED', {
         playerId: payload.playerId,
         valid: true,
-        condition: payload.condition,
+        condition: result.condition ? cloneWinCondition(result.condition) : cloneWinCondition(this.gameState.targetWin),
         winner: this.gameState.winner,
       }, 'server'));
       this.emit(createNetworkEvent('GAME_STATE_SYNC', { state: this.gameState }, 'server'));
@@ -132,10 +136,10 @@ export class MockNetworkService extends BaseNetworkService {
       drawnCards: this.gameState.drawnCards,
     }, 'server'));
 
-    setTimeout(() => this.processAIMarking(currentCard.id), AI_MARK_DELAY_MS);
+    setTimeout(() => this.processAIMarking(), AI_MARK_DELAY_MS);
   }
 
-  private processAIMarking(_cardId: number): void {
+  private processAIMarking(): void {
     if (!this.gameState) return;
 
     this.gameState = this.gameService.autoMarkAllAI(this.gameState);
@@ -161,7 +165,9 @@ export class MockNetworkService extends BaseNetworkService {
         this.emit(createNetworkEvent('WIN_VALIDATED', {
           playerId: mockId,
           valid: true,
-          condition: this.gameState.targetWin,
+          condition: this.gameState.winner?.winCondition
+            ? cloneWinCondition(this.gameState.winner.winCondition)
+            : cloneWinCondition(this.gameState.targetWin),
           winner: this.gameState.winner,
         }, 'server'));
         this.emit(createNetworkEvent('GAME_STATE_SYNC', { state: this.gameState }, 'server'));
