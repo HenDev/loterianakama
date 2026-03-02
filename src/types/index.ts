@@ -12,25 +12,15 @@ export interface BoardCell {
   marked: boolean;
 }
 
-export type WinConditionType = 'linea' | 'cuadro' | 'tabla';
 export type LinePattern = 'horizontal' | 'vertical' | 'diagonal';
 export type SquarePattern = 'esquinas' | 'centro';
+export type WinConditionType = 'linea' | 'cuadro' | 'tabla' | 'mixta';
 
-export interface LineWinCondition {
-  type: 'linea';
-  lineTypes: LinePattern[];
+export interface WinCondition {
+  type?: WinConditionType;
+  lineTypes?: LinePattern[];
+  squareTypes?: SquarePattern[];
 }
-
-export interface SquareWinCondition {
-  type: 'cuadro';
-  squareTypes: SquarePattern[];
-}
-
-export interface FullBoardWinCondition {
-  type: 'tabla';
-}
-
-export type WinCondition = LineWinCondition | SquareWinCondition | FullBoardWinCondition;
 
 export interface Player {
   id: string;

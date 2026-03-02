@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkCuadro, checkLinea, checkTabla, validateClaim } from '../utils/validation';
 import type { BoardCell } from '../types';
-import { withLineTypes, withSquareTypes } from '../utils/winCondition';
+import { normalizeWinCondition, withLineTypes, withSquareTypes } from '../utils/winCondition';
 
 function makeBoard(markedIndices: number[]): BoardCell[] {
   return Array.from({ length: 16 }, (_, index) => ({
@@ -59,7 +59,7 @@ describe('checkTabla', () => {
     const result = checkTabla(board);
 
     expect(result.isWin).toBe(true);
-    expect(result.condition).toEqual({ type: 'tabla' });
+    expect(result.condition).toEqual(normalizeWinCondition('tabla'));
   });
 });
 
@@ -86,5 +86,17 @@ describe('validateClaim', () => {
     const result = validateClaim(board, drawnCards, withLineTypes(['vertical']));
 
     expect(result.isWin).toBe(false);
+  });
+
+  it('acepta reclamos cuando gana cualquiera de las categorias activas', () => {
+    const board = makeBoard([0, 3, 12, 15]);
+    const drawnCards = [1, 4, 13, 16];
+    const result = validateClaim(board, drawnCards, {
+      lineTypes: ['horizontal'],
+      squareTypes: ['esquinas'],
+    });
+
+    expect(result.isWin).toBe(true);
+    expect(result.condition).toEqual(withSquareTypes(['esquinas']));
   });
 });

@@ -5,7 +5,13 @@ import type {
   WinCheckResult,
   WinCondition,
 } from '../types';
-import { normalizeWinCondition } from './winCondition';
+import {
+  DEFAULT_LINE_PATTERNS,
+  DEFAULT_SQUARE_PATTERNS,
+  normalizeWinCondition,
+  withLineTypes,
+  withSquareTypes,
+} from './winCondition';
 
 const BOARD_SIZE = 4;
 
@@ -39,10 +45,7 @@ function isPatternComplete(cells: BoardCell[]): boolean {
 function createLineResult(pattern: LinePattern, cells: BoardCell[]): WinCheckResult {
   return {
     isWin: true,
-    condition: {
-      type: 'linea',
-      lineTypes: [pattern],
-    },
+    condition: withLineTypes([pattern]),
     lines: [cells.map(cell => cell.cardId)],
   };
 }
@@ -50,17 +53,17 @@ function createLineResult(pattern: LinePattern, cells: BoardCell[]): WinCheckRes
 function createSquareResult(pattern: SquarePattern, cells: BoardCell[]): WinCheckResult {
   return {
     isWin: true,
-    condition: {
-      type: 'cuadro',
-      squareTypes: [pattern],
-    },
+    condition: withSquareTypes([pattern]),
     lines: [cells.map(cell => cell.cardId)],
   };
 }
 
-export function checkLinea(board: BoardCell[], condition: WinCondition = { type: 'linea', lineTypes: ['horizontal', 'vertical', 'diagonal'] }): WinCheckResult {
+export function checkLinea(
+  board: BoardCell[],
+  condition: WinCondition = withLineTypes(DEFAULT_LINE_PATTERNS),
+): WinCheckResult {
   const normalized = normalizeWinCondition(condition);
-  if (normalized.type !== 'linea') return { isWin: false };
+  if (normalized.lineTypes.length === 0) return { isWin: false };
 
   if (normalized.lineTypes.includes('horizontal')) {
     for (let row = 0; row < BOARD_SIZE; row++) {
@@ -91,9 +94,12 @@ export function checkLinea(board: BoardCell[], condition: WinCondition = { type:
   return { isWin: false };
 }
 
-export function checkCuadro(board: BoardCell[], condition: WinCondition = { type: 'cuadro', squareTypes: ['esquinas', 'centro'] }): WinCheckResult {
+export function checkCuadro(
+  board: BoardCell[],
+  condition: WinCondition = withSquareTypes(DEFAULT_SQUARE_PATTERNS),
+): WinCheckResult {
   const normalized = normalizeWinCondition(condition);
-  if (normalized.type !== 'cuadro') return { isWin: false };
+  if (normalized.squareTypes.length === 0) return { isWin: false };
 
   for (const pattern of normalized.squareTypes) {
     const cells = getSquare(board, pattern);
@@ -109,7 +115,7 @@ export function checkTabla(board: BoardCell[]): WinCheckResult {
   if (board.every(cell => cell.marked)) {
     return {
       isWin: true,
-      condition: { type: 'tabla' },
+      condition: normalizeWinCondition('tabla'),
       lines: [board.map(cell => cell.cardId)],
     };
   }
@@ -120,20 +126,23 @@ export function checkTabla(board: BoardCell[]): WinCheckResult {
 export function checkWin(board: BoardCell[], condition: WinCondition): WinCheckResult {
   const normalized = normalizeWinCondition(condition);
 
-  switch (normalized.type) {
-    case 'linea':
-      return checkLinea(board, normalized);
-    case 'cuadro':
-      return checkCuadro(board, normalized);
-    case 'tabla':
-      return checkTabla(board);
+  if (normalized.lineTypes.length === 0 && normalized.squareTypes.length === 0) {
+    return checkTabla(board);
   }
+
+  const lineResult = checkLinea(board, normalized);
+  if (lineResult.isWin) return lineResult;
+
+  const squareResult = checkCuadro(board, normalized);
+  if (squareResult.isWin) return squareResult;
+
+  return { isWin: false };
 }
 
 export function validateClaim(
   board: BoardCell[],
   drawnCards: number[],
-  condition: WinCondition
+  condition: WinCondition,
 ): WinCheckResult {
   const markedIds = board.filter(cell => cell.marked).map(cell => cell.cardId);
   const allMarkedAreDrawn = markedIds.every(id => drawnCards.includes(id));

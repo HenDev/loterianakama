@@ -61,7 +61,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.buildBackground(width, height);
     this.buildHeader(width);
-    this.showVictoryMenu(width, height);
+    this.showPatternMenu(width, height);
     this.setupKeyboard();
     void this.hydrateProfileIdentity();
   }
@@ -109,7 +109,299 @@ export class NakamaMatchScene extends Phaser.Scene {
     }
   }
 
-  private showVictoryMenu(width: number, height: number): void {
+  private showPatternMenu(width: number, height: number): void {
+    this.clearContainers();
+    this.currentView = 'menu';
+
+    const container = this.add.container(0, 0);
+    this.containers.push(container);
+
+    const panelW = 580;
+    const panelH = 680;
+    const panelX = width / 2;
+    const panelY = height / 2 + 18;
+
+    const panel = this.add.rectangle(panelX, panelY, panelW, panelH, 0x0a1428, 0.95);
+    panel.setStrokeStyle(2, 0xd4af37, 0.7);
+
+    const label1 = this.add.text(panelX, panelY - 226, 'Nombre de Jugador', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const nameBox = this.add.rectangle(panelX, panelY - 196, 340, 40, 0x0d1e30);
+    nameBox.setStrokeStyle(2, 0x4a7a9b);
+    nameBox.setInteractive({ useHandCursor: true });
+    nameBox.on('pointerdown', () => { this.inputActive = 'name'; });
+
+    this.nameInputText = this.add.text(panelX, panelY - 196, this.nameValue, {
+      fontSize: '16px',
+      color: '#ffffff',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const label2 = this.add.text(panelX, panelY - 148, 'Regla de victoria', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const helpText = this.add.text(
+      panelX,
+      panelY - 122,
+      'Puedes activar lineas y cuadros al mismo tiempo. Si no queda nada activo, la partida pasa a tabla llena.',
+      {
+        fontSize: '12px',
+        color: '#777777',
+        fontFamily: 'Georgia, serif',
+        align: 'center',
+        wordWrap: { width: 500 },
+      },
+    ).setOrigin(0.5);
+
+    type SelectorButton = {
+      container: Phaser.GameObjects.Container;
+      bg: Phaser.GameObjects.Rectangle;
+      text: Phaser.GameObjects.Text;
+      activeColor: number;
+      inactiveColor: number;
+    };
+
+    const createSelectorButton = (
+      x: number,
+      y: number,
+      label: string,
+      widthValue: number,
+      activeColor: number,
+      onClick: () => void,
+    ): SelectorButton => {
+      const localContainer = this.add.container(x, y);
+      const bg = this.add.rectangle(0, 0, widthValue, 40, 0x0d1e30);
+      bg.setStrokeStyle(2, 0x4a7a9b, 0.7);
+      const text = this.add.text(0, 0, label, {
+        fontSize: '14px',
+        color: '#d7d7d7',
+        fontFamily: 'Georgia, serif',
+        align: 'center',
+      }).setOrigin(0.5);
+
+      localContainer.add([bg, text]);
+      localContainer.setSize(widthValue, 40);
+      localContainer.setInteractive(
+        new Phaser.Geom.Rectangle(-widthValue / 2, -20, widthValue, 40),
+        Phaser.Geom.Rectangle.Contains,
+      );
+      localContainer.on('pointerdown', () => {
+        getAudioService().play('button');
+        onClick();
+      });
+      localContainer.on('pointerover', () => {
+        this.tweens.add({ targets: localContainer, scaleX: 1.03, scaleY: 1.03, duration: 80 });
+      });
+      localContainer.on('pointerout', () => {
+        this.tweens.add({ targets: localContainer, scaleX: 1, scaleY: 1, duration: 80 });
+      });
+
+      return {
+        container: localContainer,
+        bg,
+        text,
+        activeColor,
+        inactiveColor: 0x0d1e30,
+      };
+    };
+
+    const setButtonActive = (button: SelectorButton, active: boolean): void => {
+      button.bg.setFillStyle(active ? button.activeColor : button.inactiveColor);
+      button.bg.setStrokeStyle(2, active ? 0xd4af37 : 0x4a7a9b, active ? 1 : 0.7);
+      button.text.setColor(active ? '#f6e7b7' : '#d7d7d7');
+    };
+
+    const syncTargetWin = (): void => {
+      this.targetWin = normalizeWinCondition({
+        lineTypes: this.rememberedLineTypes,
+        squareTypes: this.rememberedSquareTypes,
+      });
+    };
+
+    const currentSelection = normalizeWinCondition(this.targetWin);
+    this.rememberedLineTypes = [...currentSelection.lineTypes];
+    this.rememberedSquareTypes = [...currentSelection.squareTypes];
+    syncTargetWin();
+
+    const modeButtons = {
+      linea: createSelectorButton(panelX - 150, panelY - 72, 'Lineas', 130, 0x2c5364, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.length > 0 ? [] : [...DEFAULT_LINE_PATTERNS];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      cuadro: createSelectorButton(panelX, panelY - 72, 'Cuadros', 130, 0x4a2448, () => {
+        this.rememberedSquareTypes = this.rememberedSquareTypes.length > 0 ? [] : [...DEFAULT_SQUARE_PATTERNS];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      tabla: createSelectorButton(panelX + 150, panelY - 72, 'Tabla llena', 130, 0x1a3a2a, () => {
+        this.rememberedLineTypes = [];
+        this.rememberedSquareTypes = [];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+    };
+
+    const lineLabel = this.add.text(panelX, panelY - 22, 'Patrones de linea', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const lineButtons = [
+      createSelectorButton(panelX - 150, panelY + 14, getLinePatternLabel('horizontal'), 130, 0x2b4554, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.includes('horizontal')
+          ? this.rememberedLineTypes.filter(pattern => pattern !== 'horizontal')
+          : [...this.rememberedLineTypes, 'horizontal'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      createSelectorButton(panelX, panelY + 14, getLinePatternLabel('vertical'), 130, 0x2b4554, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.includes('vertical')
+          ? this.rememberedLineTypes.filter(pattern => pattern !== 'vertical')
+          : [...this.rememberedLineTypes, 'vertical'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      createSelectorButton(panelX + 150, panelY + 14, getLinePatternLabel('diagonal'), 130, 0x2b4554, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.includes('diagonal')
+          ? this.rememberedLineTypes.filter(pattern => pattern !== 'diagonal')
+          : [...this.rememberedLineTypes, 'diagonal'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+    ];
+
+    const squareLabel = this.add.text(panelX, panelY + 62, 'Patrones de cuadro', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const squareButtons = [
+      createSelectorButton(panelX - 95, panelY + 98, getSquarePatternLabel('esquinas'), 180, 0x4b2d49, () => {
+        this.rememberedSquareTypes = this.rememberedSquareTypes.includes('esquinas')
+          ? this.rememberedSquareTypes.filter(pattern => pattern !== 'esquinas')
+          : [...this.rememberedSquareTypes, 'esquinas'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      createSelectorButton(panelX + 95, panelY + 98, getSquarePatternLabel('centro'), 180, 0x4b2d49, () => {
+        this.rememberedSquareTypes = this.rememberedSquareTypes.includes('centro')
+          ? this.rememberedSquareTypes.filter(pattern => pattern !== 'centro')
+          : [...this.rememberedSquareTypes, 'centro'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+    ];
+
+    const ruleSummary = this.add.text(panelX, panelY + 150, '', {
+      fontSize: '14px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+      align: 'center',
+      wordWrap: { width: 470 },
+    }).setOrigin(0.5);
+
+    const ruleHint = this.add.text(panelX, panelY + 182, '', {
+      fontSize: '12px',
+      color: '#777777',
+      fontFamily: 'Georgia, serif',
+      align: 'center',
+      wordWrap: { width: 470 },
+    }).setOrigin(0.5);
+
+    const createBtn = this.createButton(panelX - 100, panelY + 224, 'Crear Partida', 0x1a3a2a, () => {
+      getAudioService().play('button');
+      this.handleCreateMatch(width, height);
+    });
+
+    const joinBtn = this.createButton(panelX + 100, panelY + 224, 'Unirse', 0x1a2a4a, () => {
+      getAudioService().play('button');
+      this.showJoin(width, height);
+    });
+
+    const calledCardFeedbackToggle = this.createCalledCardFeedbackToggle(panelX, panelY + 286, 390);
+
+    this.statusText = this.add.text(panelX, panelY + 330, '', {
+      fontSize: '13px',
+      color: '#aaaaaa',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+    }).setOrigin(0.5);
+
+    this.errorText = this.add.text(panelX, panelY + 356, '', {
+      fontSize: '13px',
+      color: '#ff6666',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const refreshSelectionUi = (): void => {
+      const current = normalizeWinCondition({
+        lineTypes: this.rememberedLineTypes,
+        squareTypes: this.rememberedSquareTypes,
+      });
+
+      this.targetWin = current;
+
+      setButtonActive(modeButtons.linea, current.lineTypes.length > 0);
+      setButtonActive(modeButtons.cuadro, current.squareTypes.length > 0);
+      setButtonActive(modeButtons.tabla, current.type === 'tabla');
+
+      setButtonActive(lineButtons[0], current.lineTypes.includes('horizontal'));
+      setButtonActive(lineButtons[1], current.lineTypes.includes('vertical'));
+      setButtonActive(lineButtons[2], current.lineTypes.includes('diagonal'));
+      setButtonActive(squareButtons[0], current.squareTypes.includes('esquinas'));
+      setButtonActive(squareButtons[1], current.squareTypes.includes('centro'));
+
+      ruleSummary.setText(`Regla actual: ${getCompactWinConditionLabel(current)}`);
+      ruleHint.setText(
+        current.type === 'tabla'
+          ? 'No hay categorias activas. La sala jugara a tabla llena.'
+          : 'Cualquier patron activo de lineas o cuadros cuenta como triunfo.',
+      );
+    };
+
+    refreshSelectionUi();
+
+    container.add(panel);
+    container.add([
+      label1,
+      nameBox,
+      this.nameInputText,
+      label2,
+      helpText,
+      modeButtons.linea.container,
+      modeButtons.cuadro.container,
+      modeButtons.tabla.container,
+      lineLabel,
+      lineButtons[0].container,
+      lineButtons[1].container,
+      lineButtons[2].container,
+      squareLabel,
+      squareButtons[0].container,
+      squareButtons[1].container,
+      ruleSummary,
+      ruleHint,
+      createBtn,
+      joinBtn,
+      calledCardFeedbackToggle,
+      this.statusText,
+      this.errorText,
+    ]);
+
+    void nameBox;
+  }
+
+  public showVictoryMenu(width: number, height: number): void {
     this.clearContainers();
     this.currentView = 'menu';
 
@@ -843,7 +1135,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     }, 150);
 
     const backBtn2 = this.createButton(panelX + 90, panelY + 168, '← Regresar', 0x2a1a1a, () => {
-      this.showVictoryMenu(width, height);
+      this.showPatternMenu(width, height);
     }, 150);
 
     this.statusText = this.add.text(panelX, panelY + 228, '', {
@@ -969,7 +1261,7 @@ export class NakamaMatchScene extends Phaser.Scene {
 
     const leaveBtn = this.createButton(panelX - (this.isHost ? 90 : 0), panelY + 175, 'Salir', 0x3a1a1a, () => {
       resetNakamaNetworkService();
-      this.showVictoryMenu(width, height);
+      this.showPatternMenu(width, height);
     });
     container.add([playersLabel, this.waitingPlayerList, this.statusText, this.errorText, leaveBtn]);
 

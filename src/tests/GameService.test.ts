@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GameService, DEFAULT_CONFIG } from '../services/GameService';
 import { LOTERIA_CARDS } from '../data/cards';
 import type { GameState, BoardCell } from '../types';
-import { withLineTypes } from '../utils/winCondition';
+import { normalizeWinCondition, withLineTypes } from '../utils/winCondition';
 
 describe('GameService', () => {
   let service: GameService;
@@ -37,6 +37,10 @@ describe('GameService', () => {
       const state2 = service.createInitialState('other', 'Other');
       expect(state.gameId).not.toBe(state2.gameId);
     });
+  });
+
+  it('debe usar tabla llena como regla por defecto', () => {
+    expect(state.targetWin).toEqual(normalizeWinCondition('tabla'));
   });
 
   describe('generateBoard', () => {

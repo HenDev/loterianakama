@@ -43,7 +43,7 @@ export class LobbyScene extends Phaser.Scene {
     this.buildBackground(width, height);
     this.buildTitle(width, height);
     //this.buildDecoration(width, height);
-    this.buildVictoryStartPanel(width, height);
+    this.buildPatternSelectionPanel(width, height);
     //this.buildRulesPanel(width, height);
     this.buildThreeCard(width, height);
 
@@ -905,7 +905,7 @@ export class LobbyScene extends Phaser.Scene {
     this.scale.on('fullscreenchange', updateFullscreenIcon);
   }
 
-  private buildVictoryStartPanel(width: number, height: number): void {
+  public buildVictoryStartPanel(width: number, height: number): void {
     const panelX = width / 2;
     const panelY = height * 0.54;
 
@@ -1174,6 +1174,264 @@ export class LobbyScene extends Phaser.Scene {
       setButtonVisible(subtypeButtons[1], false);
       setButtonVisible(subtypeButtons[2], false);
       infoText.setText('Se necesitan las 16 cartas marcadas.');
+    };
+
+    refreshSelectionUi();
+
+    const audioButton = this.createCircleIconButton(panelX + 215, panelY - 145, (graphics) => {
+      this.drawAudioIcon(graphics, getAudioService().isMuted());
+    }, () => {
+      const audio = getAudioService();
+      audio.setMuted(!audio.isMuted());
+      this.drawAudioIcon(audioButton.icon, audio.isMuted());
+    });
+
+    const fullscreenButton = this.createCircleIconButton(panelX - 215, panelY - 145, (graphics) => {
+      this.drawFullscreenIcon(graphics, this.scale.isFullscreen);
+    }, () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    const updateFullscreenIcon = () => {
+      this.drawFullscreenIcon(fullscreenButton.icon, this.scale.isFullscreen);
+    };
+
+    this.scale.on('fullscreenchange', updateFullscreenIcon);
+  }
+
+  private buildPatternSelectionPanel(width: number, height: number): void {
+    const panelX = width / 2;
+    const panelY = height * 0.52;
+
+    const panel = this.add.rectangle(panelX, panelY, 720, 660, 0x0a0a1a, 0.9);
+    panel.setStrokeStyle(2, 0xd4af37, 0.8);
+
+    this.add.text(panelX, panelY - 145, 'UN JUGADOR - Modo de Victoria', {
+      fontSize: '17px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    this.add.text(panelX, panelY - 114, 'Puedes combinar lineas y cuadros. Si no eliges nada, se juega tabla llena.', {
+      fontSize: '12px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+      align: 'center',
+      wordWrap: { width: 520 },
+    }).setOrigin(0.5);
+
+    type SelectorButton = {
+      container: Phaser.GameObjects.Container;
+      bg: Phaser.GameObjects.Rectangle;
+      text: Phaser.GameObjects.Text;
+      activeColor: number;
+      inactiveColor: number;
+    };
+
+    const createSelectorButton = (
+      x: number,
+      y: number,
+      label: string,
+      widthValue: number,
+      activeColor: number,
+      onClick: () => void,
+    ): SelectorButton => {
+      const container = this.add.container(x, y);
+      const bg = this.add.rectangle(0, 0, widthValue, 42, 0x0d1e30);
+      bg.setStrokeStyle(2, 0x4a7a9b, 0.7);
+      const text = this.add.text(0, 0, label, {
+        fontSize: '14px',
+        color: '#d7d7d7',
+        fontFamily: 'Georgia, serif',
+        align: 'center',
+      }).setOrigin(0.5);
+
+      container.add([bg, text]);
+      container.setSize(widthValue, 42);
+      container.setInteractive(
+        new Phaser.Geom.Rectangle(-widthValue / 2, -21, widthValue, 42),
+        Phaser.Geom.Rectangle.Contains,
+      );
+      container.on('pointerdown', () => {
+        getAudioService().play('button');
+        onClick();
+      });
+      container.on('pointerover', () => {
+        this.tweens.add({ targets: container, scaleX: 1.03, scaleY: 1.03, duration: 80 });
+      });
+      container.on('pointerout', () => {
+        this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 80 });
+      });
+
+      return {
+        container,
+        bg,
+        text,
+        activeColor,
+        inactiveColor: 0x0d1e30,
+      };
+    };
+
+    const setButtonActive = (button: SelectorButton, active: boolean): void => {
+      button.bg.setFillStyle(active ? button.activeColor : button.inactiveColor);
+      button.bg.setStrokeStyle(2, active ? 0xd4af37 : 0x4a7a9b, active ? 1 : 0.7);
+      button.text.setColor(active ? '#f6e7b7' : '#d7d7d7');
+    };
+
+    const syncTargetWin = (): void => {
+      this.targetWin = normalizeWinCondition({
+        lineTypes: this.rememberedLineTypes,
+        squareTypes: this.rememberedSquareTypes,
+      });
+    };
+
+    const currentSelection = normalizeWinCondition(this.targetWin);
+    this.rememberedLineTypes = [...currentSelection.lineTypes];
+    this.rememberedSquareTypes = [...currentSelection.squareTypes];
+    syncTargetWin();
+
+    const modeButtons = {
+      linea: createSelectorButton(panelX - 180, panelY - 74, 'Lineas', 150, 0x2c5364, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.length > 0 ? [] : [...DEFAULT_LINE_PATTERNS];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      cuadro: createSelectorButton(panelX, panelY - 74, 'Cuadros', 150, 0x4a2448, () => {
+        this.rememberedSquareTypes = this.rememberedSquareTypes.length > 0 ? [] : [...DEFAULT_SQUARE_PATTERNS];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      tabla: createSelectorButton(panelX + 180, panelY - 74, 'Tabla llena', 150, 0x1a3a2a, () => {
+        this.rememberedLineTypes = [];
+        this.rememberedSquareTypes = [];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+    };
+
+    this.add.text(panelX, panelY - 24, 'Patrones de linea', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const lineButtons = [
+      createSelectorButton(panelX - 180, panelY + 12, getLinePatternLabel('horizontal'), 150, 0x2b4554, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.includes('horizontal')
+          ? this.rememberedLineTypes.filter(pattern => pattern !== 'horizontal')
+          : [...this.rememberedLineTypes, 'horizontal'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      createSelectorButton(panelX, panelY + 12, getLinePatternLabel('vertical'), 150, 0x2b4554, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.includes('vertical')
+          ? this.rememberedLineTypes.filter(pattern => pattern !== 'vertical')
+          : [...this.rememberedLineTypes, 'vertical'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      createSelectorButton(panelX + 180, panelY + 12, getLinePatternLabel('diagonal'), 150, 0x2b4554, () => {
+        this.rememberedLineTypes = this.rememberedLineTypes.includes('diagonal')
+          ? this.rememberedLineTypes.filter(pattern => pattern !== 'diagonal')
+          : [...this.rememberedLineTypes, 'diagonal'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+    ];
+
+    this.add.text(panelX, panelY + 60, 'Patrones de cuadro', {
+      fontSize: '13px',
+      color: '#888888',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    const squareButtons = [
+      createSelectorButton(panelX - 95, panelY + 96, getSquarePatternLabel('esquinas'), 180, 0x4b2d49, () => {
+        this.rememberedSquareTypes = this.rememberedSquareTypes.includes('esquinas')
+          ? this.rememberedSquareTypes.filter(pattern => pattern !== 'esquinas')
+          : [...this.rememberedSquareTypes, 'esquinas'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+      createSelectorButton(panelX + 95, panelY + 96, getSquarePatternLabel('centro'), 180, 0x4b2d49, () => {
+        this.rememberedSquareTypes = this.rememberedSquareTypes.includes('centro')
+          ? this.rememberedSquareTypes.filter(pattern => pattern !== 'centro')
+          : [...this.rememberedSquareTypes, 'centro'];
+        syncTargetWin();
+        refreshSelectionUi();
+      }),
+    ];
+
+    const summaryText = this.add.text(panelX, panelY + 150, '', {
+      fontSize: '15px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+      fontStyle: 'italic',
+      align: 'center',
+      wordWrap: { width: 540 },
+    }).setOrigin(0.5);
+
+    const infoText = this.add.text(panelX, panelY + 182, '', {
+      fontSize: '13px',
+      color: '#777777',
+      fontFamily: 'Georgia, serif',
+      align: 'center',
+      wordWrap: { width: 560 },
+    }).setOrigin(0.5);
+
+    this.createButton(panelX, panelY + 226, '  Iniciar Partida  ', 0x2c5364, () => {
+      getAudioService().play('button');
+      this.launchSelectedGame();
+    }, 240, 56, 19);
+
+    const divider = this.add.graphics();
+    divider.lineStyle(1, 0xd4af37, 0.3);
+    divider.lineBetween(panelX - 240, panelY + 266, panelX + 240, panelY + 266);
+
+    this.add.text(panelX, panelY + 300, 'MULTIJUGADOR EN LINEA', {
+      fontSize: '17px',
+      color: '#d4af37',
+      fontFamily: 'Georgia, serif',
+    }).setOrigin(0.5);
+
+    this.createButton(panelX - 110, panelY + 342, '  Jugar en linea  ', 0x1a2a4a, () => {
+      getAudioService().play('button');
+      this.scene.start('NakamaMatchScene');
+    }, 220, 56, 18);
+
+    this.createButton(panelX + 110, panelY + 342, '  Solo cantar  ', 0x4a2432, () => {
+      getAudioService().play('button');
+      this.scene.start('CantorScene');
+    }, 220, 56, 18);
+
+    const refreshSelectionUi = (): void => {
+      const current = normalizeWinCondition({
+        lineTypes: this.rememberedLineTypes,
+        squareTypes: this.rememberedSquareTypes,
+      });
+
+      this.targetWin = current;
+
+      setButtonActive(modeButtons.linea, current.lineTypes.length > 0);
+      setButtonActive(modeButtons.cuadro, current.squareTypes.length > 0);
+      setButtonActive(modeButtons.tabla, current.type === 'tabla');
+
+      setButtonActive(lineButtons[0], current.lineTypes.includes('horizontal'));
+      setButtonActive(lineButtons[1], current.lineTypes.includes('vertical'));
+      setButtonActive(lineButtons[2], current.lineTypes.includes('diagonal'));
+      setButtonActive(squareButtons[0], current.squareTypes.includes('esquinas'));
+      setButtonActive(squareButtons[1], current.squareTypes.includes('centro'));
+
+      summaryText.setText(`Regla: ${getCompactWinConditionLabel(current)}`);
+      infoText.setText(
+        current.type === 'tabla'
+          ? 'No hay categorias activas. Para ganar se necesitan las 16 cartas marcadas.'
+          : 'Puedes cantar loteria con cualquiera de los patrones activos en esta partida.',
+      );
     };
 
     refreshSelectionUi();
