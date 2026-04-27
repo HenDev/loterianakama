@@ -36,6 +36,9 @@ export class GameScene extends Phaser.Scene {
   private cardsDrawnCount: Phaser.GameObjects.Text | null = null;
   private currentCardLabel: Phaser.GameObjects.Text | null = null;
   private drawnPileIds: number[] = [];
+  private localBoardKey = '';
+  private lastRenderedCurrentCardId: number | null = null;
+  private loteriaButton: Phaser.GameObjects.Container | null = null;
 
   private boundOnSync!: (e: NetworkEvent) => void;
   private boundOnCardDrawn!: (e: NetworkEvent) => void;
@@ -58,6 +61,10 @@ export class GameScene extends Phaser.Scene {
     this.useNakama = data.useNakama ?? false;
     this.networkService = this.useNakama ? getNakamaNetworkService() : getMockNetworkService();
     this.hasShownResults = false;
+    this.localBoardKey = '';
+    this.lastRenderedCurrentCardId = null;
+    this.drawnPileIds = [];
+    this.loteriaButton = null;
     if (this.useNakama) {
       const nakamaPlayerId = getNakamaNetworkService().getLocalPlayerId();
       if (nakamaPlayerId) this.playerId = nakamaPlayerId;
@@ -272,7 +279,7 @@ export class GameScene extends Phaser.Scene {
       onMark: (cardId) => this.onMarkCard(cardId),
     });
 
-    this.createLoteriaButton(x + w / 2, y + h - 32);
+    this.loteriaButton = this.createLoteriaButton(x + w / 2, y + h - 32);
 
     this.cardsDrawnCount = this.add.text(x + w / 2, y + h * 0.985, 'Cartas cantadas: 0 / 54', {
       fontSize: '11px',
@@ -399,21 +406,41 @@ export class GameScene extends Phaser.Scene {
       if (localPlayer) this.playerId = localPlayer.id;
     }
     if (localPlayer && this.boardComp) {
-      this.rebuildBoard(localPlayer);
+      this.syncLocalBoard(localPlayer);
     }
 
     this.playerListComp?.update(state.players);
 
     if (state.currentCard) {
       this.currentCardLabel?.setText(`"${state.currentCard.verse}"`);
+      this.renderCurrentCard(state.currentCard, false);
+    } else {
+      this.deckCardComp?.showBack();
+      this.lastRenderedCurrentCardId = null;
     }
 
     this.cardsDrawnCount?.setText(`Cartas cantadas: ${state.drawnCards.length} / 54`);
     this.updateDrawnCardsGrid(state.drawnCards);
+    this.updateClaimButtonState(state);
 
-    if (state.status === 'finished' && state.winner) {
-      this.goToResults(state.winner.id, state.winner);
+    if (state.status === 'finished') {
+      if (state.winner) {
+        this.goToResults(state.winner.id, state.winner);
+      } else {
+        this.goToResults('', null);
+      }
     }
+  }
+
+  private syncLocalBoard(player: Player): void {
+    const nextBoardKey = player.board.map(cell => cell.cardId).join(',');
+    if (nextBoardKey !== this.localBoardKey) {
+      this.localBoardKey = nextBoardKey;
+      this.rebuildBoard(player);
+      return;
+    }
+
+    this.boardComp?.updateBoard(player.board);
   }
 
   private rebuildBoard(player: Player): void {
@@ -447,8 +474,7 @@ export class GameScene extends Phaser.Scene {
   private onCardDrawn(card: LotteryCard): void {
     getAudioService().play('card_flip');
     getVoiceService().speakCardName(card.name);
-    this.deckCardComp?.showCard(card);
-    this.currentCardLabel?.setText(`"${card.verse}"`);
+    this.renderCurrentCard(card, true);
     this.statusText?.setText(`Carta: ${card.id}. ${card.name}`);
 
     const localPlayer = this.gameState?.players.find(p => p.id === this.playerId);
@@ -470,14 +496,11 @@ export class GameScene extends Phaser.Scene {
     const resolvedWinner =
       winner ??
       this.gameState?.winner ??
-      this.gameState?.players.find(p => p.id === winnerId) ??
+      (winnerId ? this.gameState?.players.find(p => p.id === winnerId) : null) ??
       null;
 
-    if (!resolvedWinner) return;
-
     this.hasShownResults = true;
-    getAudioService().play('win');
-    const isLocalWinner = winnerId === this.playerId;
+    const isLocalWinner = !!resolvedWinner && winnerId === this.playerId;
     this.scene.start('ResultScene', {
       winner: resolvedWinner,
       isLocalWinner,
@@ -493,6 +516,15 @@ export class GameScene extends Phaser.Scene {
       this.showFeedback('Esta carta aún no ha sido cantada.', 0xff8800);
       return;
     }
+
+    this.boardComp?.updateCell(cardId, true);
+    const localPlayer = this.gameState.players.find(player => player.id === this.playerId);
+    if (localPlayer) {
+      localPlayer.board = localPlayer.board.map(cell =>
+        cell.cardId === cardId ? { ...cell, marked: true } : cell,
+      );
+    }
+
     this.networkService.send({
       type: 'MARK_CARD',
       payload: { playerId: this.playerId, cardId },
@@ -529,6 +561,27 @@ export class GameScene extends Phaser.Scene {
       this.addCardToDrawnPile(cardId, shouldAnimate);
       this.drawnPileIds.push(cardId);
     });
+  }
+
+  private renderCurrentCard(card: LotteryCard, animate: boolean): void {
+    this.currentCardLabel?.setText(`"${card.verse}"`);
+    if (this.lastRenderedCurrentCardId === card.id && this.deckCardComp?.getCurrentCardId() === card.id) {
+      return;
+    }
+
+    this.deckCardComp?.showCard(card, animate);
+    this.lastRenderedCurrentCardId = card.id;
+  }
+
+  private updateClaimButtonState(state: GameState): void {
+    if (!this.loteriaButton) return;
+    const canClaim = state.status === 'playing';
+    const bg = this.loteriaButton.getAt<Phaser.GameObjects.Rectangle>(0);
+    const text = this.loteriaButton.getAt<Phaser.GameObjects.Text>(1);
+
+    bg.setAlpha(canClaim ? 1 : 0.45);
+    text.setAlpha(canClaim ? 1 : 0.45);
+    this.loteriaButton.setAlpha(canClaim ? 1 : 0.8);
   }
 
   private addCardToDrawnPile(cardId: number, animate: boolean): void {
@@ -655,6 +708,8 @@ export class GameScene extends Phaser.Scene {
     this.networkService.off('WIN_VALIDATED', this.boundOnWinValidated);
     this.networkService.off('WIN_INVALID', this.boundOnWinInvalid);
     this.drawnPileIds = [];
+    this.localBoardKey = '';
+    this.lastRenderedCurrentCardId = null;
   }
 }
 

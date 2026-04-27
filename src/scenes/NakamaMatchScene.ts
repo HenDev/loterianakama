@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { GameState, LinePattern, SquarePattern, WinCondition } from '../types';
+import type { GameState, LinePattern, NetworkEvent, SquarePattern, WinCondition } from '../types';
 import { getNakamaNetworkService, resetNakamaNetworkService } from '../services/NakamaNetworkService';
 import { getAudioService } from '../services/AudioService';
 import {
@@ -41,6 +41,9 @@ export class NakamaMatchScene extends Phaser.Scene {
   private isHost = false;
   private containers: Phaser.GameObjects.Container[] = [];
   private clipboardData = '';
+  private boundGameStateSync?: (event: { payload: { state: GameState } }) => void;
+  private boundError?: (event: { payload?: { message?: string } | null }) => void;
+  private hasLaunchedGame = false;
 
   constructor() {
     super({ key: 'NakamaMatchScene' });
@@ -55,6 +58,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.currentView = 'menu';
     this.matchId = '';
     this.joinInput = '';
+    this.hasLaunchedGame = false;
   }
 
   create(): void {
@@ -63,6 +67,7 @@ export class NakamaMatchScene extends Phaser.Scene {
     this.buildHeader(width);
     this.showPatternMenu(width, height);
     this.setupKeyboard();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
     void this.hydrateProfileIdentity();
   }
 
@@ -1253,9 +1258,22 @@ export class NakamaMatchScene extends Phaser.Scene {
 
     if (this.isHost) {
       this._startBtn = this.createButton(panelX + 90, panelY + 175, '▶ Iniciar Juego', 0x1a4a2a, () => {
-        getAudioService().play('button');
-        this.handleStartGame();
+        const playerCount = getNakamaNetworkService().gameState?.players.length ?? 0;
+        console.info('Start button pressed', {
+          isHost: this.isHost,
+          matchId: this.matchId,
+          playerCount,
+          currentView: this.currentView,
+        });
+        this.statusText?.setText('Procesando inicio...');
+        try {
+          getAudioService().play('button');
+        } catch (error) {
+          console.warn('Button audio failed:', error);
+        }
+        void this.handleStartGame();
       });
+      this._startBtn.setDepth(20);
       container.add(this._startBtn);
     }
 
@@ -1263,6 +1281,7 @@ export class NakamaMatchScene extends Phaser.Scene {
       resetNakamaNetworkService();
       this.showPatternMenu(width, height);
     });
+    leaveBtn.setDepth(20);
     container.add([playersLabel, this.waitingPlayerList, this.statusText, this.errorText, leaveBtn]);
 
     this.updateWaitingList();
@@ -1400,16 +1419,7 @@ export class NakamaMatchScene extends Phaser.Scene {
       const ns = getNakamaNetworkService();
       await ns.connect(name);
       this.playerId = ns.getLocalPlayerId();
-
-      ns.on('GAME_STATE_SYNC', (event) => {
-        const payload = event.payload as { state: GameState };
-        const state = payload.state;
-        this.targetWin = normalizeWinCondition(state.targetWin);
-        if (this.currentView === 'waiting') this.updateWaitingList();
-        if (state.status === 'playing') {
-          this.launchGame();
-        }
-      });
+      this.registerNetworkListeners();
 
       const id = await ns.createMatch(name, this.targetWin);
       this.matchId = id;
@@ -1448,16 +1458,7 @@ export class NakamaMatchScene extends Phaser.Scene {
       const ns = getNakamaNetworkService();
       await ns.connect(name);
       this.playerId = ns.getLocalPlayerId();
-
-      ns.on('GAME_STATE_SYNC', (event) => {
-        const payload = event.payload as { state: GameState };
-        const state = payload.state;
-        this.targetWin = normalizeWinCondition(state.targetWin);
-        if (this.currentView === 'waiting') this.updateWaitingList();
-        if (state.status === 'playing') {
-          this.launchGame();
-        }
-      });
+      this.registerNetworkListeners();
 
       await ns.joinMatch(id, name);
 
@@ -1476,30 +1477,46 @@ export class NakamaMatchScene extends Phaser.Scene {
     }
   }
 
-  private handleStartGame(): void {
+  private async handleStartGame(): Promise<void> {
     const ns = getNakamaNetworkService();
     const playerCount = ns.gameState?.players.length ?? 0;
+    console.info('handleStartGame invoked', {
+      playerCount,
+      localPlayerId: ns.getLocalPlayerId(),
+      matchId: ns.getMatchId(),
+      isHost: ns.isHostPlayer(),
+      gameStateStatus: ns.gameState?.status,
+    });
     if (playerCount < MIN_MULTIPLAYER_PLAYERS) {
       if (this.errorText) {
         this.errorText.setText(`Se requieren al menos ${MIN_MULTIPLAYER_PLAYERS} jugadores para iniciar.`);
       }
+      this.statusText?.setText('Faltan jugadores para iniciar.');
       return;
     }
     if (this.errorText) this.errorText.setText('');
-    
-    // Notificamos al servidor que queremos empezar
-    ns.send({
-      type: 'GAME_START',
-      payload: { targetWin: this.targetWin },
-      senderId: this.playerId,
-      timestamp: Date.now(),
-    });
-    
-    // El cambio de escena ocurrirá automáticamente cuando recibamos el GAME_STATE_SYNC
+
     if (this.statusText) this.statusText.setText('Iniciando partida...');
+
+    try {
+      await ns.sendMatchEvent({
+        type: 'GAME_START',
+        payload: { targetWin: this.targetWin },
+        senderId: this.playerId,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      if (this.errorText) {
+        this.errorText.setText(`No se pudo enviar el inicio: ${String(error)}`);
+      }
+      if (this.statusText) this.statusText.setText('No se pudo iniciar la partida.');
+    }
   }
 
   private launchGame(): void {
+    if (this.hasLaunchedGame) return;
+    this.hasLaunchedGame = true;
+    this.unregisterNetworkListeners();
     if (this.loadingTimer) { this.loadingTimer.remove(); this.loadingTimer = null; }
     const targetWin = normalizeWinCondition(
       getNakamaNetworkService().gameState?.targetWin ?? this.targetWin,
@@ -1510,6 +1527,40 @@ export class NakamaMatchScene extends Phaser.Scene {
       useNakama: true,
       playerName: this.playerName,
     });
+  }
+
+  private registerNetworkListeners(): void {
+    this.unregisterNetworkListeners();
+    const ns = getNakamaNetworkService();
+
+    this.boundGameStateSync = (event: { payload: { state: GameState } }) => {
+      const state = event.payload.state;
+      this.targetWin = normalizeWinCondition(state.targetWin);
+      if (this.currentView === 'waiting') this.updateWaitingList();
+      if (state.status === 'playing') {
+        this.launchGame();
+      }
+    };
+
+    this.boundError = (event: { payload?: { message?: string } | null }) => {
+      const message = event.payload?.message;
+      if (message) this.errorText?.setText(message);
+    };
+
+    ns.on('GAME_STATE_SYNC', this.boundGameStateSync as (event: NetworkEvent) => void);
+    ns.on('ERROR', this.boundError as (event: NetworkEvent) => void);
+  }
+
+  private unregisterNetworkListeners(): void {
+    const ns = getNakamaNetworkService();
+    if (this.boundGameStateSync) {
+      ns.off('GAME_STATE_SYNC', this.boundGameStateSync as (event: NetworkEvent) => void);
+      this.boundGameStateSync = undefined;
+    }
+    if (this.boundError) {
+      ns.off('ERROR', this.boundError as (event: NetworkEvent) => void);
+      this.boundError = undefined;
+    }
   }
 
   private setupKeyboard(): void {
@@ -1706,6 +1757,7 @@ export class NakamaMatchScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.unregisterNetworkListeners();
     if (this.loadingTimer) { this.loadingTimer.remove(); this.loadingTimer = null; }
   }
 }

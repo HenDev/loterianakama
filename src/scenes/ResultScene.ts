@@ -44,6 +44,7 @@ export class ResultScene extends Phaser.Scene {
 
   private buildResults(width: number, height: number): void {
     const centerX = width / 2;
+    const hasWinner = !!this.winner;
 
     if (this.isLocalWinner) {
       this.add.text(centerX, height * 0.22, 'Loteria', {
@@ -56,6 +57,20 @@ export class ResultScene extends Phaser.Scene {
       this.add.text(centerX, height * 0.30, 'Ganaste la partida', {
         fontSize: '28px',
         color: '#ffffff',
+        fontFamily: 'Georgia, serif',
+        fontStyle: 'italic',
+      }).setOrigin(0.5);
+    } else if (!hasWinner) {
+      this.add.text(centerX, height * 0.22, 'Sin ganador', {
+        fontSize: '56px',
+        color: '#cc8844',
+        fontFamily: 'Georgia, serif',
+        fontStyle: 'bold',
+      }).setOrigin(0.5);
+
+      this.add.text(centerX, height * 0.30, 'Nadie canto loteria a tiempo', {
+        fontSize: '24px',
+        color: '#e0d0b0',
         fontFamily: 'Georgia, serif',
         fontStyle: 'italic',
       }).setOrigin(0.5);
@@ -75,13 +90,13 @@ export class ResultScene extends Phaser.Scene {
       }).setOrigin(0.5);
     }
 
-    const winnerName = this.winner?.name ?? '???';
+    const winnerName = this.winner?.name ?? 'Nadie';
     const winCondition = getWinConditionResultLabel(this.winner?.winCondition);
 
     const panel = this.add.rectangle(centerX, height * 0.42, 400, 100, 0x0a0a1a, 0.9);
     panel.setStrokeStyle(2, 0xd4af37, 0.6);
 
-    this.add.text(centerX, height * 0.38, 'GANADOR', {
+    this.add.text(centerX, height * 0.38, hasWinner ? 'GANADOR' : 'RESULTADO', {
       fontSize: '13px',
       color: '#d4af37',
       fontFamily: 'Georgia, serif',
@@ -94,7 +109,7 @@ export class ResultScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(centerX, height * 0.49, `Condicion: ${winCondition}`, {
+    this.add.text(centerX, height * 0.49, hasWinner ? `Condicion: ${winCondition}` : 'Se agotaron las cartas sin reclamo valido.', {
       fontSize: '14px',
       color: '#888888',
       fontFamily: 'Georgia, serif',

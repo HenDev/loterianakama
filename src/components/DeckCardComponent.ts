@@ -8,6 +8,7 @@ export class DeckCardComponent extends Phaser.GameObjects.Container {
   private border!: Phaser.GameObjects.Rectangle;
   private readonly cardWidth: number;
   private readonly cardHeight: number;
+  private currentCardId: number | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
     super(scene, x, y);
@@ -32,7 +33,17 @@ export class DeckCardComponent extends Phaser.GameObjects.Container {
     this.add([this.backFace, this.frontFace, this.border]);
   }
 
-  showCard(card: LotteryCard): void {
+  showCard(card: LotteryCard, animate = true): void {
+    this.currentCardId = card.id;
+    this.scene.tweens.killTweensOf(this);
+
+    if (!animate) {
+      this.backFace.setVisible(false);
+      this.frontFace.setFrame(getCardFrameById(card.id)).setVisible(true);
+      this.setScale(1);
+      return;
+    }
+
     this.scene.tweens.add({
       targets: this,
       scaleX: 0,
@@ -52,8 +63,14 @@ export class DeckCardComponent extends Phaser.GameObjects.Container {
   }
 
   showBack(): void {
+    this.currentCardId = null;
+    this.scene.tweens.killTweensOf(this);
     this.backFace.setVisible(true);
     this.frontFace.setVisible(false);
     this.setScale(1);
+  }
+
+  getCurrentCardId(): number | null {
+    return this.currentCardId;
   }
 }
